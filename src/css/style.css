@@ -270,3 +270,268 @@ a#magic-window {
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
+
+/* Premium floating anatomical region labels overlay */
+.brain-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    background: rgba(10, 10, 20, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 6.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    white-space: nowrap;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, opacity;
+}
+
+.brain-label.memory {
+    border-color: #006DFF;
+    color: #85B5FF;
+    box-shadow: 0 0 10px rgba(0, 109, 255, 0.4), inset 0 0 4px rgba(0, 109, 255, 0.2);
+}
+
+.brain-label.reasoning {
+    border-color: #BD00FF;
+    color: #E285FF;
+    box-shadow: 0 0 10px rgba(189, 0, 255, 0.4), inset 0 0 4px rgba(189, 0, 255, 0.2);
+}
+
+.brain-label.language {
+    border-color: #E040FB;
+    color: #F5A6FF;
+    box-shadow: 0 0 10px rgba(224, 64, 251, 0.4), inset 0 0 4px rgba(224, 64, 251, 0.2);
+}
+
+.brain-label.attention {
+    border-color: #00E5FF;
+    color: #85F7FF;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.4), inset 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+.brain-label.executive {
+    border-color: #FFFFFF;
+    color: #FFFFFF;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.4), inset 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+.brain-label.perception {
+    border-color: #00E5FF;
+    color: #85F7FF;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.4), inset 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+.brain-label.working_memory {
+    border-color: #006DFF;
+    color: #85B5FF;
+    box-shadow: 0 0 10px rgba(0, 109, 255, 0.4), inset 0 0 4px rgba(0, 109, 255, 0.2);
+}
+
+.brain-label.long_term_memory {
+    border-color: #BD00FF;
+    color: #E285FF;
+    box-shadow: 0 0 10px rgba(189, 0, 255, 0.4), inset 0 0 4px rgba(189, 0, 255, 0.2);
+}
+
+.brain-label.world_model {
+    border-color: #FF007F;
+    color: #FF85BF;
+    box-shadow: 0 0 10px rgba(255, 0, 127, 0.4), inset 0 0 4px rgba(255, 0, 127, 0.2);
+}
+
+.brain-label.prediction {
+    border-color: #00FFCC;
+    color: #85FFE0;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.4), inset 0 0 4px rgba(0, 255, 204, 0.2);
+}
+
+.brain-label.goals {
+    border-color: #FF8C00;
+    color: #FFAE59;
+    box-shadow: 0 0 10px rgba(255, 140, 0, 0.4), inset 0 0 4px rgba(255, 140, 0, 0.2);
+}
+
+.brain-label.values {
+    border-color: #7CFC00;
+    color: #ADFF59;
+    box-shadow: 0 0 10px rgba(124, 252, 0, 0.4), inset 0 0 4px rgba(124, 252, 0, 0.2);
+}
+
+.brain-label.learning {
+    border-color: #32CD32;
+    color: #7DFF7D;
+    box-shadow: 0 0 10px rgba(50, 205, 50, 0.4), inset 0 0 4px rgba(50, 205, 50, 0.2);
+}
+
+.brain-label.identity {
+    border-color: #FFD700;
+    color: #FFE57D;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4), inset 0 0 4px rgba(255, 215, 0, 0.2);
+}
+
+.brain-label.device_adapters {
+    border-color: #FF5722;
+    color: #FF9E80;
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.4), inset 0 0 4px rgba(255, 87, 34, 0.2);
+}
+
+/* Glassmorphic console layout frames */
+.console-panel {
+    position: absolute;
+    background: rgba(10, 10, 22, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    color: #e0e0f0;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    padding: 10px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.console-panel-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #00E5FF;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+#console-top {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    height: 48px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+}
+
+#console-left {
+    top: 68px;
+    left: 10px;
+    bottom: 88px;
+    width: 240px;
+}
+
+#console-right {
+    top: 68px;
+    right: 10px;
+    bottom: 88px;
+    width: 260px;
+}
+
+#console-bottom {
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    height: 68px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+}
+
+/* Custom inner scrollbar for log streams */
+.console-scrollbar {
+    overflow-y: auto;
+}
+.console-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.console-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.console-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+.console-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 229, 255, 0.4);
+}
+
+/* CLI log stream style */
+.log-line {
+    font-family: 'Courier New', monospace;
+    font-size: 8px;
+    line-height: 1.3;
+    margin-bottom: 4px;
+    white-space: nowrap;
+}
+.log-info { color: #85F7FF; }
+.log-warning { color: #FFAE59; }
+.log-critical { color: #ff5252; }
+
+/* CLI Input input styling */
+.console-cli-input {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: #e0e0f0;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    padding: 4px 6px;
+    width: 100%;
+    outline: none;
+    box-sizing: border-box;
+}
+.console-cli-input:focus {
+    border-color: #00E5FF;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
+/* Health and Consciousness bars */
+.meter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 8px;
+    gap: 8px;
+}
+.meter-label {
+    text-transform: uppercase;
+    font-weight: bold;
+    color: #a0a0b8;
+}
+.meter-bg {
+    background: rgba(255, 255, 255, 0.08);
+    height: 4px;
+    width: 120px;
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+.meter-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+}

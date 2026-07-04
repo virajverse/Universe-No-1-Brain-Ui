@@ -2,24 +2,20 @@ import * as THREE from 'three';
 import 'three/examples/js/loaders/OBJLoader';
 
 class Loaders {
-    constructor(startAnimation) {
-        this.BRAIN_MODEL = {};
+    constructor(startAnimation, onModelLoaded) {
+        this.BRAIN_MODEL = null;
         this.brainXRayLight = {};
-        this.FONT = {};
         this.assets = new Map();
-        this.models = ['BrainUVs.obj'];
         this.loadingManager = new THREE.LoadingManager();
         this.startAnimation = startAnimation;
+        this.onModelLoaded = onModelLoaded;
         this.loadingManager.onLoad = this.handlerLoad.bind(this);
         this.loadingManager.onProgress = this.handlerProgress;
         this.loadingManager.onError = this.handlerError;
         this.loadingManager.onStart = this.handlerStart;
-        this.setModel = this.setModel.bind(this);
         this.loadBrainTextures();
-        this.loadOBJs();
         this.loadTextures();
-        this.loadFont();
-        this.loadSceneBackground();
+        this.loadOBJsAsync();
     }
 
     static handlerStart() {
@@ -35,25 +31,14 @@ class Loaders {
     static handlerError(url) {
         console.log(`There was an error loading ${url}`);
     }
-    setModel(model, i) {
-        switch (i) {
-            case 0:
-                this.BRAIN_MODEL = model;
-                break;
-            case 1:
-                this.XRAY_MODEL = model;
-                break;
-            default:
-                this.BRAIN_MODEL = model;
-        }
-    }
 
-    loadOBJs() {
-        const loader = new THREE.OBJLoader(this.loadingManager);
-        this.models.forEach((m, i) => {
-            loader.load(`static/models/${m}`, (model) => {
-                this.setModel(model, i);
-            });
+    loadOBJsAsync() {
+        const loader = new THREE.OBJLoader();
+        loader.load('static/models/BrainUVs.obj', (model) => {
+            this.BRAIN_MODEL = model;
+            if (this.onModelLoaded) {
+                this.onModelLoaded(model);
+            }
         });
     }
 
@@ -68,28 +53,6 @@ class Loaders {
         const loader = new THREE.TextureLoader(this.loadingManager);
         loader.load('static/textures/brainXRayLight.png', (t) => {
             this.brainXRayLight = t;
-        });
-    }
-
-    loadSceneBackground() {
-        const cubeTextureLoader = new THREE.CubeTextureLoader(this.loadingManager);
-        const path = 'static/textures/sky/';
-        const format = '.png';
-        const urls = [
-            `${path}px${format}`, `${path}nx${format}`,
-            `${path}py${format}`, `${path}ny${format}`,
-            `${path}pz${format}`, `${path}nz${format}`,
-        ];
-
-        cubeTextureLoader.load(urls, (textureCube) => {
-            this.assets.set('sky', textureCube);
-        });
-    }
-
-    loadFont() {
-        const fontLoader = new THREE.FontLoader(this.loadingManager);
-        fontLoader.load('static/fonts/Roboto_Regular.json', (font) => {
-            this.FONT = font;
         });
     }
 }

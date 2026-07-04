@@ -75,7 +75,8 @@ class ThinkingAnimation {
         });
         this.flashing = new THREE.Points(geometry, customMaterial);
         this.flashing.name = 'flashing';
-        scene.add(this.flashing);
+        this.flashing.visible = false; // DISABLED: Remove flashing indicators outside the brain
+        // scene.add(this.flashing); // DISABLED: Remove flashing indicators outside the brain
     }
 
     animationCamera(val) {

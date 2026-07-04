@@ -31,7 +31,7 @@ class ParticleSystem {
 
         const originalPoints = this.brainParticles.attributes.position.array;
         const originalCount = originalPoints.length / 3;
-        const multiplier = 4; // 4x particle density multiplier!
+        const multiplier = 1; // 1x particle density multiplier for subtle idle atmosphere
         const count = originalCount * multiplier;
         const brainPoints = new Float32Array(count * 3);
 
@@ -132,7 +132,7 @@ class ParticleSystem {
             // transparent: true,
             // blending: THREE.AdditiveBlending,
             vertexColors: THREE.VertexColors,
-            deptWrite: false,
+            depthWrite: false,
 
             blending: THREE.AdditiveBlending,
             depthTest: true,
@@ -245,8 +245,7 @@ class ParticleSystem {
         // Solid core with a glowing edge so overlapping particles blend into a solid mesh
         float pct = smoothstep(0.48, 0.15, distanceToCenter);
         vec3 color = vec3(1.0) * gl_FragColor.rgb;
-        // Multiply by 0.08 to reduce white glow and keep colors rich
-        gl_FragColor = vec4(color, pct * gl_FragColor.a * 0.08);
+        gl_FragColor = vec4(color, pct * gl_FragColor.a * 0.015);
 
        `],
 
@@ -272,7 +271,6 @@ class ParticleSystem {
 
         const systemPoints = new THREE.Points(geometry, material);
 
-        console.error('MEMORIES', this.memories);
         const xRayGeometry = new THREE.Geometry().fromBufferGeometry(this.mainBrain.endPointsCollections);
         xRayGeometry.computeFaceNormals();
         xRayGeometry.mergeVertices();
@@ -371,7 +369,6 @@ class ParticleSystem {
                 },
                 onComplete: () => {
                     this.mainBrain.orbitControls.maxDistance = 700;
-                    this.mainBrain.orbitControls.autoRotate = true;
                     this.updateTransitioning(1.5);
                     this.mainBrain.fadeSolidBrain(true);
                 },

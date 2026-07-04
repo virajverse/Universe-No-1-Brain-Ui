@@ -68,27 +68,60 @@
     </head>
 
     <body>
+        <!-- Floating 3D Region Labels Overlay -->
+        <div id="floating-labels-container" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 5;">
+            <!-- Legacy labels kept for compatibility -->
+            <div id="label-memory" class="brain-label memory" style="display: none !important;">Long-Term Memory</div>
+            <div id="label-reasoning" class="brain-label reasoning" style="display: none !important;">World Model</div>
+            
+            <!-- Granular 13 Biological Regions Labels -->
+            <div id="label-perception" class="brain-label perception">Perception System</div>
+            <div id="label-attention" class="brain-label attention">Attention System</div>
+            <div id="label-working-memory" class="brain-label working_memory">Working Memory</div>
+            <div id="label-long-term-memory" class="brain-label long_term_memory">Long-Term Memory</div>
+            <div id="label-world-model" class="brain-label world_model">World Model</div>
+            <div id="label-prediction" class="brain-label prediction">Prediction Engine</div>
+            <div id="label-goals" class="brain-label goals">Goal System</div>
+            <div id="label-values" class="brain-label values">Value System</div>
+            <div id="label-executive" class="brain-label executive">Executive Cortex</div>
+            <div id="label-learning" class="brain-label learning">Learning System</div>
+            <div id="label-identity" class="brain-label identity">Identity Core</div>
+            <div id="label-language" class="brain-label language">Language System</div>
+            <div id="label-device-adapters" class="brain-label device_adapters">Motor System</div>
+        </div>
+
         <!-- Glassmorphic Dashboard Panel -->
-        <div id="cognitive-dashboard">
-            <div class="dashboard-header">
-                <h2>Cognitive State</h2>
-                <div class="status-indicator-container">
-                    <span id="active-state-dot"></span>
-                    <span id="active-state-label">IDLE</span>
-                </div>
+        <!-- Top Frame: Global Brain Status & Consciousness Metrics -->
+        <div id="console-top" class="console-panel" style="width: auto; right: auto;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="font-weight: 800; color: #00E5FF; font-size: 11px; letter-spacing: 0.05em;">UNIVERSE #1 BRAIN</span>
+                <span style="height: 12px; width: 1px; background: rgba(255,255,255,0.2);"></span>
+                <span style="font-size: 9px; color: #a0a0b8; font-weight: bold; text-transform: uppercase;">STATE: <span id="active-state-label" style="color: #00F2FE; font-weight: 800;">IDLE</span></span>
             </div>
-            <div class="state-buttons-container">
-                <button class="state-btn active" data-state="IDLE">Idle</button>
-                <button class="state-btn" data-state="THINKING">Thinking</button>
-                <button class="state-btn" data-state="PREDICTING">Predicting</button>
-                <button class="state-btn" data-state="LEARNING">Learning</button>
-                <button class="state-btn" data-state="DECISION">Decision</button>
-                <button class="state-btn" data-state="EXECUTING">Executing</button>
-                <button class="state-btn" data-state="ERROR">Error</button>
-                <button class="state-btn" data-state="SLEEP">Sleep</button>
-                <button class="state-btn" data-state="RECOVERY">Recovery</button>
+        </div>
+
+        <!-- Left Frame: Navigation & Command CLI -->
+        <div id="console-left" class="console-panel" style="justify-content: flex-start; bottom: auto; height: auto;">
+            <div class="console-panel-header">
+                <span>NAVIGATION</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: 9px;">
+                <div class="state-buttons-container">
+                    <button class="state-btn active" data-state="IDLE" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Idle</button>
+                    <button class="state-btn" data-state="THINKING" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Thinking</button>
+                    <button class="state-btn" data-state="PREDICTING" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Predicting</button>
+                    <button class="state-btn" data-state="LEARNING" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Learning</button>
+                    <button class="state-btn" data-state="DECISION" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Decision</button>
+                    <button class="state-btn" data-state="EXECUTING" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Executing</button>
+                    <button class="state-btn" data-state="ERROR" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Error</button>
+                    <button class="state-btn" data-state="SLEEP" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Sleep</button>
+                    <button class="state-btn" data-state="RECOVERY" style="padding: 4px 6px; font-size: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); color: #ccc; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s ease;">Recovery</button>
+                </div>
+                <div style="display: flex; gap: 4px; margin-top: 4px;">
+                    <button id="btn-toggle-interact" class="control-btn" style="flex: 1; padding: 4px; background: rgba(220, 50, 50, 0.15); border: 1px solid #ff5252; color: #ff8a80; border-radius: 4px; cursor: pointer; font-size: 8px; font-weight: bold; text-transform: uppercase;">Interact: OFF</button>
+                    <button id="btn-toggle-rotation" class="control-btn" style="flex: 1; padding: 4px; background: rgba(220, 50, 50, 0.15); border: 1px solid #ff5252; color: #ff8a80; border-radius: 4px; cursor: pointer; font-size: 8px; font-weight: bold; text-transform: uppercase;">Spin: OFF</button>
+                </div>
             </div>
         </div>
     </body>
-
 </html>

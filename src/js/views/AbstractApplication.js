@@ -86,13 +86,13 @@ class AbstractApplication {
     this.orbitControls.minPolarAngle = Math.PI / 6; // Limit vertical rotation to 30 degrees
     this.orbitControls.maxPolarAngle = Math.PI * 5 / 6; // Limit vertical rotation to 150 degrees
     this.orbitControls.enableZoom = true;
-    this.orbitControls.zoomSpeed = 0.1;
-    this.orbitControls.panSpeed = 0.1;
-    this.orbitControls.minDistance = 50;
+    this.orbitControls.zoomSpeed = 1.2;
+    this.orbitControls.panSpeed = 1.0;
+    this.orbitControls.minDistance = 35;
     this.orbitControls.maxDistance = 2500;
     this.orbitControls.autoRotate = false;
     this.orbitControls.autoRotateSpeed = 1.0;
-    this.orbitControls.rotateSpeed = 0.1;
+    this.orbitControls.rotateSpeed = 1.0;
     this.orbitControls.screenSpacePanning = true;
 
     window.addEventListener("resize", this.onWindowResize.bind(this), false);

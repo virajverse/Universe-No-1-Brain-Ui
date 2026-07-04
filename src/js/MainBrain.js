@@ -1,13 +1,9 @@
-/* eslint-disable no-param-reassign */
+/* eslint-disable no-param-reassign, space-infix-ops, space-before-blocks, no-plusplus */
 import * as THREE from "three";
 import { Power4, TweenMax } from "gsap";
 import "three/examples/js/BufferGeometryUtils";
 import AbstractApplication from "./views/AbstractApplication";
 import Loaders from "./Loaders/Loaders";
-import BubblesAnimation from "./services/bubblesAnimation";
-import ThinkingAnimation from "./services/thinkingAnimation";
-import GUI from "./services/gui";
-import Font from "./services/font";
 import ParticleSystem from "./services/particlesSystem";
 import Memories from "./data/memories.json";
 
@@ -23,7 +19,10 @@ class MainBrain extends AbstractApplication {
     this.deltaTime = 0;
     this.particlesColor = new THREE.Color(0xffffff);
     this.particlesStartColor = new THREE.Color(0xffffff);
-    this.loaders = new Loaders(this.runAnimation.bind(this));
+    this.loaders = new Loaders(
+      this.runAnimation.bind(this),
+      model => this.onBrainModelLoaded(model)
+    );
     this.memories = Memories;
     this.brainLines = [];
     this.brainMeshes = [];
@@ -45,6 +44,112 @@ class MainBrain extends AbstractApplication {
     this.isRecording = false;
     this.cognitiveState = "IDLE";
     this.targetStateColors = null;
+
+    // Subsystem live telemetry state cache
+    this.isTelemetryWSConnected = false;
+    this.logicalTick = 0;
+    this.telemetryData = {
+      cpu_usage_pct: 12.0,
+      ram_usage_mb: 138.0,
+      awareness_rate: 0.85,
+      attention_rate: 0.72,
+      learning_rate: 0.50,
+      regions: {
+        executive: { frequency_hz: 120.0, latency_ms: 4.8, queue_backlog: 0 },
+        working_memory: { frequency_hz: 240.0, latency_ms: 2.4, queue_backlog: 0 },
+        values: { frequency_hz: 60.0, latency_ms: 12.6, queue_backlog: 0 },
+        goals: { frequency_hz: 30.0, latency_ms: 15.2, queue_backlog: 0 },
+        identity: { frequency_hz: 10.0, latency_ms: 3.2, queue_backlog: 0 },
+        prediction: { frequency_hz: 45.0, latency_ms: 18.4, queue_backlog: 0 },
+        language: { frequency_hz: 90.0, latency_ms: 5.1, queue_backlog: 0 },
+        ltm: { frequency_hz: 25.0, latency_ms: 22.5, queue_backlog: 0 },
+        world_model: { frequency_hz: 15.0, latency_ms: 35.2, queue_backlog: 0 },
+        perception: { frequency_hz: 360.0, latency_ms: 1.8, queue_backlog: 0 },
+        attention: { frequency_hz: 300.0, latency_ms: 2.1, queue_backlog: 0 },
+        learning: { frequency_hz: 10.0, latency_ms: 45.0, queue_backlog: 0 },
+        device_adapters: { frequency_hz: 1000.0, latency_ms: 0.8, queue_backlog: 0 }
+      }
+    };
+
+    // Define coordinates scaled up (radius ~46-49) to clear center space
+    this.pExecutive = new THREE.Vector3(-18, 39, 23); // Left Frontal
+    this.pAttention = new THREE.Vector3(-20, 39, -20); // Top Parietal
+    this.pPrediction = new THREE.Vector3(20, 36, 26); // Right Front
+    this.pPerception = new THREE.Vector3(-28, 13, -36); // Back (Occipital Lobe)
+    this.pWorldModel = new THREE.Vector3(43, 13, 20); // Mid-right inner cortical wall
+    this.pWorkingMemory = new THREE.Vector3(-34, 16, 29); // Left Frontal (dlPFC)
+    this.pGoals = new THREE.Vector3(0, 20, 44); // Center frontal (Medial Frontal)
+    this.pLTM = new THREE.Vector3(-42, -20, -13); // Left Lower Temporal
+    this.pValues = new THREE.Vector3(20, -13, 42); // Center-Right Front
+    this.pLanguage = new THREE.Vector3(-44, -7, 20); // Left Side (Temporal)
+    this.pIdentity = new THREE.Vector3(13, -20, 39); // Medial center inner wall
+    this.pLearning = new THREE.Vector3(-20, -36, -26); // Bottom Rear
+    this.pDeviceAdapters = new THREE.Vector3(0, -42, -20); // Bottom Brainstem / Cerebellum
+
+    // Legacy labels compatibility aliases
+    this.pMemory = this.pLTM;
+    this.pReasoning = this.pWorldModel;
+
+    // Setup backend telemetry socket listener
+    this.setupTelemetryWS();
+  }
+
+  setupTelemetryWS() {
+    try {
+      this.telemetryWS = new WebSocket("ws://localhost:8080/telemetry");
+      this.telemetryWS.onopen = () => {
+        this.isTelemetryWSConnected = true;
+        console.log("Telemetry WS Server link established.");
+      };
+      this.telemetryWS.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          this.parseTelemetryPayload(payload);
+
+          // Dynamic Cognitive state visual mapping based on EventBus payload
+          if (payload.event_type) {
+            let targetState = "IDLE";
+            const evt = payload.event_type.toLowerCase();
+            if (evt.includes("perception") || evt.includes("sensor")) {
+              targetState = "PREDICTING";
+            } else if (evt.includes("attention") || evt.includes("workspace") || evt.includes("memory")) {
+              targetState = "THINKING";
+            } else if (evt.includes("decision") || evt.includes("intent") || evt.includes("goal")) {
+              targetState = "DECISION";
+            } else if (evt.includes("learn") || evt.includes("adapt")) {
+              targetState = "LEARNING";
+            } else if (evt.includes("execute") || evt.includes("action") || evt.includes("motor")) {
+              targetState = "EXECUTING";
+            } else if (evt.includes("error") || evt.includes("fail") || evt.includes("alert")) {
+              targetState = "ERROR";
+            }
+
+            if (targetState !== "IDLE") {
+              this.setCognitiveState(targetState);
+              if (this.stateRevertTimer) clearTimeout(this.stateRevertTimer);
+              this.stateRevertTimer = setTimeout(() => {
+                this.setCognitiveState("IDLE");
+              }, 2200);
+            }
+          }
+
+          // Print telemetry logs
+          if (payload.log_line) {
+            console.log(payload.log_line);
+          }
+        } catch (err) {
+          // Silent catch
+        }
+      };
+      this.telemetryWS.onclose = () => {
+        this.isTelemetryWSConnected = false;
+        console.warn("Telemetry WS link disconnected. Fallback simulation active.");
+        setTimeout(() => this.setupTelemetryWS(), 5000);
+      };
+    } catch (e) {
+      this.isTelemetryWSConnected = false;
+      setTimeout(() => this.setupTelemetryWS(), 5000);
+    }
   }
 
   addFloor() {
@@ -60,6 +165,7 @@ class MainBrain extends AbstractApplication {
     this.plane.rotation.x = -0.5 * Math.PI;
     this.scene.add(this.plane);
   }
+
   addIllumination() {
     this.ambienlight = new THREE.AmbientLight(0xb8c5cf, 0);
     this.scene.add(this.ambienlight);
@@ -97,76 +203,6 @@ class MainBrain extends AbstractApplication {
     this.brainLines = [];
     this.brainMeshes = [];
 
-    // Defensive check to prevent crash during hot-reloads
-    if (!this.loaders || !this.loaders.BRAIN_MODEL || typeof this.loaders.BRAIN_MODEL.traverse !== "function") {
-      console.warn("BRAIN_MODEL is not fully loaded or initialized yet.");
-      return;
-    }
-
-    const linesToAdd = [];
-    const meshesToAdd = [];
-
-    this.loaders.BRAIN_MODEL.traverse((child) => {
-      if (child instanceof THREE.LineSegments) {
-        this.memories.lines = {
-          ...this.memories.lines,
-          ...MainBrain.addLinesPath(child, this.memories),
-        };
-        // Instantiate custom transparent line basic material for zoom transitions
-        child.material = new THREE.LineBasicMaterial({
-          color: 0xBD00FF, // Starts with Cosmic Purple
-          transparent: true,
-          opacity: 0.35, // Set baseline opacity to fill particle gaps
-          blending: THREE.AdditiveBlending,
-          depthWrite: false
-        });
-        this.brainLines.push(child);
-        linesToAdd.push(child);
-      }
-      if (!(child instanceof THREE.Mesh)) {
-        return;
-      }
-      child.geometry.verticesNeedUpdate = true;
-
-      // Layer 2: Translucent Deep Space Purple Brain Surface / Outer Skin
-      child.material = new THREE.MeshBasicMaterial({
-        color: 0x13002E, // Deep space purple (removed white)
-        transparent: true,
-        opacity: 0.0, // Start invisible; fades to 0.04 after morph completes
-        blending: THREE.NormalBlending,
-        side: THREE.DoubleSide,
-        depthWrite: false
-      });
-      this.brainMeshes.push(child);
-      meshesToAdd.push(child);
-
-      // Layer 3: Folds Wireframe Network Overlay
-      const wireframeGeom = new THREE.WireframeGeometry(child.geometry);
-      const wireframeMat = new THREE.LineBasicMaterial({
-        color: 0x2A3D55, // Faint blue-grey in idle
-        transparent: true,
-        opacity: 0.0, // Start invisible; fades to 0.35 after morph completes
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
-      wireframe.name = child.name;
-      this.brainWireframes.push(wireframe);
-      meshesToAdd.push(wireframe);
-
-      this.brainBufferGeometries.push(child.geometry);
-
-      this.memories = {
-        ...this.memories,
-        ...MainBrain.storeBrainVertices(child, this.memories),
-      };
-    });
-
-    // Safely add children to the scene after traversal is complete
-    linesToAdd.forEach(line => this.scene.add(line));
-    meshesToAdd.forEach(mesh => this.scene.add(mesh));
-
-    // Layer 6: Procedural breathing Inner Core spheres group
     this.innerCoreGroup = new THREE.Group();
     this.innerCoreSpheres = [];
 
@@ -178,7 +214,7 @@ class MainBrain extends AbstractApplication {
       const mat = new THREE.MeshBasicMaterial({
         color: coreColors[k],
         transparent: true,
-        opacity: 0.0, // Start invisible, fade in with fadeSolidBrain()
+        opacity: 0.0,
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
         depthWrite: false
@@ -189,9 +225,485 @@ class MainBrain extends AbstractApplication {
     }
     this.scene.add(this.innerCoreGroup);
 
+    this.addNeuralVeins();
+    this.lSystemGroup = new THREE.Group();
+    this.scene.add(this.lSystemGroup);
+
+    // Smoothly fade in concentric core spheres immediately
+    this.innerCoreSpheres.forEach((sphere, idx) => {
+      let targetOpacity = 0.25;
+      if (idx === 0) targetOpacity = 0.08;
+      else if (idx === 1) targetOpacity = 0.15;
+      TweenMax.to(sphere.material, 1.5, { opacity: targetOpacity });
+    });
+  }
+
+  onBrainModelLoaded(model) {
+    if (!model) return;
+
+    const lobeCenters = [
+      { name: "executive", center: this.pExecutive },
+      { name: "attention", center: this.pAttention },
+      { name: "prediction", center: this.pPrediction },
+      { name: "perception", center: this.pPerception },
+      { name: "world_model", center: this.pWorldModel },
+      { name: "working_memory", center: this.pWorkingMemory },
+      { name: "goals", center: this.pGoals },
+      { name: "ltm", center: this.pLTM },
+      { name: "values", center: this.pValues },
+      { name: "language", center: this.pLanguage },
+      { name: "identity", center: this.pIdentity },
+      { name: "learning", center: this.pLearning },
+      { name: "motor", center: this.pDeviceAdapters }
+    ];
+
+    const linesToAdd = [];
+    const meshesToAdd = [];
+
+    model.traverse((child) => {
+      if (child instanceof THREE.LineSegments) {
+        this.memories.lines = {
+          ...this.memories.lines,
+          ...MainBrain.addLinesPath(child, this.memories),
+        };
+
+        const positionAttr = child.geometry.attributes.position;
+        if (positionAttr && positionAttr.count) {
+          const colors = [];
+          for (let i = 0; i < positionAttr.count; i += 1) {
+            const vx = positionAttr.getX(i);
+            const vy = positionAttr.getY(i);
+            const vz = positionAttr.getZ(i);
+            const vPos = new THREE.Vector3(vx, vy, vz);
+
+            let closestLobe = "process";
+            let minDist = Infinity;
+            lobeCenters.forEach((info) => {
+              const d = vPos.distanceTo(info.center);
+              if (d < minDist) {
+                minDist = d;
+                closestLobe = info.name;
+              }
+            });
+
+            const color = new THREE.Color();
+            if (closestLobe.includes("semantic")) {
+              color.setHex(0x006DFF);
+            } else if (closestLobe.includes("analytic") || closestLobe.includes("episodic")) {
+              color.setHex(0xBD00FF);
+            } else if (closestLobe.includes("affective")) {
+              color.setHex(0x00E5FF);
+            } else if (closestLobe.includes("cerebellum") || closestLobe.includes("bridge") || closestLobe.includes("amygdala")) {
+              color.setHex(0xE040FB);
+            } else {
+              color.setHex(0xFFFFFF);
+            }
+            colors.push(color.r, color.g, color.b);
+          }
+          child.geometry.addAttribute("color", new THREE.BufferAttribute(new Float32Array(colors), 3));
+        }
+
+        child.material = new THREE.LineBasicMaterial({
+          vertexColors: THREE.VertexColors,
+          transparent: true,
+          opacity: 0.0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        this.brainLines.push(child);
+        linesToAdd.push(child);
+      }
+      if (!(child instanceof THREE.Mesh)) {
+        return;
+      }
+      child.geometry.verticesNeedUpdate = true;
+
+      let meshBaseColorHex = 0x13002E;
+      let baseColorHex = 0x2A3D55;
+
+      if (child.name.includes("semantic") || child.name.includes("episodic")) {
+        meshBaseColorHex = 0x001D4E;
+        baseColorHex = 0x006DFF;
+      } else if (child.name.includes("analytic") || child.name.includes("process")) {
+        meshBaseColorHex = 0x2A003E;
+        baseColorHex = 0xBD00FF;
+      } else if (child.name.includes("affective")) {
+        meshBaseColorHex = 0x002A3E;
+        baseColorHex = 0x00E5FF;
+      } else if (child.name.includes("cerebellum") || child.name.includes("bridge") || child.name.includes("amygdala")) {
+        meshBaseColorHex = 0x2E002A;
+        baseColorHex = 0xE040FB;
+      } else {
+        meshBaseColorHex = 0x3E3E3E;
+        baseColorHex = 0xFFFFFF;
+      }
+
+      child.material = new THREE.MeshBasicMaterial({
+        color: meshBaseColorHex,
+        transparent: true,
+        opacity: 0.0,
+        blending: THREE.NormalBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      child.userData = { baseColor: new THREE.Color(meshBaseColorHex) };
+      this.brainMeshes.push(child);
+      meshesToAdd.push(child);
+
+      const wireframeGeom = new THREE.WireframeGeometry(child.geometry);
+      const wireframeMat = new THREE.LineBasicMaterial({
+        color: baseColorHex,
+        transparent: true,
+        opacity: 0.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const wireframe = new THREE.LineSegments(wireframeGeom, wireframeMat);
+      wireframe.name = child.name;
+      wireframe.userData = { baseColor: new THREE.Color(baseColorHex) };
+      this.brainWireframes.push(wireframe);
+      meshesToAdd.push(wireframe);
+
+      this.brainBufferGeometries.push(child.geometry);
+
+      this.memories = {
+        ...this.memories,
+        ...MainBrain.storeBrainVertices(child, this.memories),
+      };
+    });
+
+    linesToAdd.forEach(line => this.scene.add(line));
+    meshesToAdd.forEach(mesh => this.scene.add(mesh));
+
     this.endPointsCollections = THREE.BufferGeometryUtils.mergeBufferGeometries(
       this.brainBufferGeometries
     );
+    this.addParticlesSystem();
+
+    // Smoothly fade in wireframes and meshes
+    this.brainWireframes.forEach((wire) => {
+      TweenMax.to(wire.material, 2.0, { opacity: 0.35 });
+    });
+    this.brainLines.forEach((line) => {
+      TweenMax.to(line.material, 2.0, { opacity: 0.35 });
+    });
+    this.brainMeshes.forEach((mesh) => {
+      TweenMax.to(mesh.material, 2.0, { opacity: 0.04 });
+    });
+    if (this.particlesSystem && this.particlesSystem.particles) {
+      this.particlesSystem.particles.material.opacity = 0.0;
+      TweenMax.to(this.particlesSystem.particles.material, 2.0, { opacity: 0.85 });
+    }
+  }
+
+  addNeuralVeins() {
+    this.neuralVeins = [];
+    this.neuralVeinProgress = [];
+    this.neuralVeinPaths = [];
+    this.neuralVeinColors = [];
+    this.neuralPackets = [];
+
+    // Define standard biological node colors
+    const nodeColors = {
+      executive: 0xBD00FF, // Magenta/Purple
+      attention: 0x00F2FE, // Teal
+      prediction: 0xFFAE59, // Orange/Gold
+      perception: 0x00E5FF, // Cyan
+      world_model: 0xBD00FF, // Purple
+      working_memory: 0x006DFF, // Blue
+      goals: 0xFF3D00, // Red
+      ltm: 0x3B82F6, // Deep Blue
+      values: 0xFF5252, // Red/Pink
+      language: 0xFFF176, // Yellow
+      identity: 0xFFD600, // Gold
+      learning: 0x32CD32, // Green
+      motor: 0xFFFFFF // White
+    };
+
+    const nodes = [
+      { id: "executive", pos: this.pExecutive },
+      { id: "attention", pos: this.pAttention },
+      { id: "prediction", pos: this.pPrediction },
+      { id: "perception", pos: this.pPerception },
+      { id: "world_model", pos: this.pWorldModel },
+      { id: "working_memory", pos: this.pWorkingMemory },
+      { id: "goals", pos: this.pGoals },
+      { id: "ltm", pos: this.pLTM },
+      { id: "values", pos: this.pValues },
+      { id: "language", pos: this.pLanguage },
+      { id: "identity", pos: this.pIdentity },
+      { id: "learning", pos: this.pLearning },
+      { id: "motor", pos: this.pDeviceAdapters }
+    ];
+
+    const connections = [
+      ["executive", "attention"],
+      ["executive", "prediction"],
+      ["executive", "working_memory"],
+      ["executive", "goals"],
+      ["attention", "perception"],
+      ["attention", "working_memory"],
+      ["prediction", "world_model"],
+      ["prediction", "goals"],
+      ["perception", "world_model"],
+      ["perception", "language"],
+      ["world_model", "ltm"],
+      ["working_memory", "ltm"],
+      ["working_memory", "language"],
+      ["goals", "values"],
+      ["ltm", "values"],
+      ["ltm", "learning"],
+      ["values", "identity"],
+      ["language", "identity"],
+      ["identity", "learning"],
+      ["learning", "motor"],
+      ["motor", "executive"]
+    ];
+
+    connections.forEach((conn) => {
+      const n1 = nodes.find(n => n.id === conn[0]);
+      const n2 = nodes.find(n => n.id === conn[1]);
+      if (n1 && n2) {
+        const curve = this.createBezierCurve(n1.pos, n2.pos);
+        const tubeGeom = new THREE.TubeGeometry(curve, 24, 0.22, 6, false);
+        const tubeMat = new THREE.MeshBasicMaterial({
+          color: nodeColors[conn[0]] || 0x00E5FF,
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const tube = new THREE.Mesh(tubeGeom, tubeMat);
+        this.scene.add(tube);
+        this.neuralVeins.push(tube);
+
+        this.neuralVeinPaths.push(curve);
+        this.neuralVeinProgress.push(Math.random());
+        this.neuralVeinColors.push(nodeColors[conn[0]] || 0x00E5FF);
+      }
+    });
+
+    const center = new THREE.Vector3(0, 0, 0);
+
+    nodes.forEach((node) => {
+      const mid = new THREE.Vector3().addVectors(node.pos, center).multiplyScalar(0.5);
+      const controlPoint = new THREE.Vector3(
+        mid.x + (Math.random() - 0.5) * 8,
+        mid.y + (Math.random() - 0.5) * 8,
+        mid.z + (Math.random() - 0.5) * 8
+      );
+      const curve = new THREE.QuadraticBezierCurve3(node.pos, controlPoint, center);
+      const tubeGeom = new THREE.TubeGeometry(curve, 24, 0.22, 6, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: nodeColors[node.id] || 0xBD00FF,
+        transparent: true,
+        opacity: 0.10,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const tube = new THREE.Mesh(tubeGeom, tubeMat);
+      this.scene.add(tube);
+      this.neuralVeins.push(tube);
+
+      this.neuralVeinPaths.push(curve);
+      this.neuralVeinProgress.push(Math.random());
+      this.neuralVeinColors.push(nodeColors[node.id] || 0x00E5FF);
+    });
+
+    this.nodeSpheres = [];
+
+    nodes.forEach((node) => {
+      const color = nodeColors[node.id] || 0x00E5FF;
+
+      const geom = new THREE.SphereGeometry(1.6, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const sphere = new THREE.Mesh(geom, mat);
+      sphere.position.copy(node.pos);
+      sphere.renderOrder = 100;
+      this.scene.add(sphere);
+      this.nodeSpheres.push(sphere);
+
+      const ringGeom = new THREE.RingGeometry(2.0, 2.7, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.position.copy(node.pos);
+      this.scene.add(ring);
+
+      sphere.userData = {
+        ring,
+        baseScale: 1.0,
+        color,
+        id: node.id
+      };
+    });
+
+    this.neuralVeinPaths.forEach((path, idx) => {
+      const geom = new THREE.SphereGeometry(0.7, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({
+        color: this.neuralVeinColors[idx] || 0x00E5FF,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const packet = new THREE.Mesh(geom, mat);
+      packet.position.copy(path.getPointAt(this.neuralVeinProgress[idx]));
+      packet.renderOrder = 100;
+      this.scene.add(packet);
+      this.neuralPackets.push(packet);
+    });
+  }
+
+  createBezierCurve(start, end) {
+    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+    const dir = new THREE.Vector3().subVectors(end, start);
+    const offset = new THREE.Vector3(-dir.z, dir.y, dir.x).normalize().multiplyScalar(dir.length() * 0.05);
+    const controlPoint = new THREE.Vector3().addVectors(mid, offset);
+
+    return new THREE.QuadraticBezierCurve3(start, controlPoint, end);
+  }
+
+  static addLinesPath(mesh, memories) {
+    const keys = Object.keys(memories.lines);
+    keys.map((l) => {
+      if (mesh.name.includes(l)) {
+        memories.lines[l] = mesh.geometry.attributes.position.array;
+        return memories.lines;
+      }
+      return [];
+    });
+  }
+
+  static storeBrainVertices(mesh, memories) {
+    const keys = Object.keys(memories);
+    keys.map((m) => {
+      if (mesh.name.includes(m)) {
+        if (memories[m].length) {
+          memories[m].push(mesh.geometry);
+          memories[m] = [
+            THREE.BufferGeometryUtils.mergeBufferGeometries(memories[m]),
+          ];
+          return memories;
+        }
+        return memories[m].push(mesh.geometry);
+      }
+      return [];
+    });
+  }
+
+  runAnimation() {
+    this.addBrain();
+
+    this.setCognitiveState("IDLE");
+
+    // Setup professional HTML control panel triggers
+    this.stateButtons = document.querySelectorAll(".state-btn");
+    this.activeLabel = document.getElementById("active-state-label");
+
+    if (this.stateButtons) {
+      this.stateButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const state = btn.getAttribute("data-state");
+          this.setCognitiveState(state);
+        });
+      });
+    }
+
+    const toggleBtn = document.getElementById("btn-toggle-interact");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        this.raycastInteractActive = !this.raycastInteractActive;
+        if (this.raycastInteractActive) {
+          toggleBtn.textContent = "Interact: ON";
+          toggleBtn.style.background = "rgba(0, 229, 255, 0.15)";
+          toggleBtn.style.borderColor = "#00E5FF";
+          toggleBtn.style.color = "#85F7FF";
+        } else {
+          toggleBtn.textContent = "Interact: OFF";
+          toggleBtn.style.background = "rgba(220, 50, 50, 0.15)";
+          toggleBtn.style.borderColor = "#ff5252";
+          toggleBtn.style.color = "#ff8a80";
+        }
+      });
+    }
+
+    const rotationBtn = document.getElementById("btn-toggle-rotation");
+    if (rotationBtn) {
+      rotationBtn.addEventListener("click", () => {
+        if (this.orbitControls) {
+          this.orbitControls.autoRotate = !this.orbitControls.autoRotate;
+          if (this.orbitControls.autoRotate) {
+            rotationBtn.textContent = "Spin: ON";
+            rotationBtn.style.background = "rgba(0, 229, 255, 0.15)";
+            rotationBtn.style.borderColor = "#00E5FF";
+            rotationBtn.style.color = "#85F7FF";
+          } else {
+            rotationBtn.textContent = "Spin: OFF";
+            rotationBtn.style.background = "rgba(220, 50, 50, 0.15)";
+            rotationBtn.style.borderColor = "#ff5252";
+            rotationBtn.style.color = "#ff8a80";
+          }
+        }
+      });
+    }
+
+    // Setup interactive HTML anatomical label click handlers
+    const labels = [
+      "label-perception", "label-attention", "label-working-memory", "label-long-term-memory",
+      "label-world-model", "label-prediction", "label-goals", "label-values",
+      "label-executive", "label-learning", "label-identity", "label-language",
+      "label-device-adapters"
+    ];
+
+    labels.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.inspectSubsystem(id);
+        });
+      }
+    });
+
+
+    try {
+      const signatureCodes = [
+        169, 32, 50, 48, 50, 56, 32, 86, 105, 114, 97, 106, 118,
+        101, 114, 115, 101, 32, 124, 32, 84, 97, 108, 105, 121,
+        111, 32, 84, 101, 99, 104, 110, 111, 108, 111, 103, 105,
+        101, 115
+      ];
+      const signature = String.fromCharCode(...signatureCodes);
+      const dashboard = document.getElementById("cognitive-dashboard");
+      if (dashboard) {
+        const footer = document.createElement("div");
+        footer.className = "dashboard-footer";
+        footer.textContent = signature;
+        dashboard.appendChild(footer);
+      }
+      console.log(
+        `%c ${signature} | All Rights Reserved.`,
+        "color: #00F2FE; font-weight: bold; font-size: 13px; font-family: sans-serif;"
+      );
+    } catch (e) {
+      // Silent catch
+    }
+
+    this.startIntro();
+    this.animate();
   }
 
   startIntro() {
@@ -212,7 +724,6 @@ class MainBrain extends AbstractApplication {
           }
         },
         onComplete: () => {
-          //hide xray
           if (this.particlesSystem && this.particlesSystem.xRay) {
             this.particlesSystem.xRay.material.uniforms.c.value = 1.0;
           }
@@ -228,22 +739,15 @@ class MainBrain extends AbstractApplication {
       this.scene.add(this.particlesSystem.xRay);
     }
     let memoryTimer;
-    const me = this;
     setTimeout(() => {
-      //enable xRay Animation
       if (this.particlesSystem && typeof this.particlesSystem.isXRayActive === "function") {
         this.particlesSystem.isXRayActive(true);
         this.setCognitiveState("RECOVERY");
       }
       setTimeout(() => {
-        //remove animation
         this.particlesSystem.isXRayActive(false);
-        //Enable Memories
         memoryTimer = setInterval(() => {
           if (memoryCount < 5) {
-            this.bubblesAnimation.updateSubSystem(memoryCount);
-
-            // Sync dashboard states with active memory subsystems
             if (memoryCount === 1) {
               this.setCognitiveState("PREDICTING");
             } else if (memoryCount === 2) {
@@ -253,14 +757,10 @@ class MainBrain extends AbstractApplication {
             } else if (memoryCount === 4) {
               this.setCognitiveState("DECISION");
             }
-
             memoryCount += 1;
           } else {
-            this.bubblesAnimation.updateSubSystem(0);
             this.setCognitiveState("THINKING");
             clearInterval(memoryTimer);
-
-            // After the final transition completes, safely return to IDLE
             setTimeout(() => {
               this.setCognitiveState("IDLE");
             }, 5000);
@@ -270,262 +770,68 @@ class MainBrain extends AbstractApplication {
     }, 2000);
   }
 
-  static addLinesPath(mesh, memories) {
-    const keys = Object.keys(memories.lines);
-    keys.map((l) => {
-      if (mesh.name.includes(l)) {
-        memories.lines[l] = mesh.geometry.attributes.position.array;
-        return memories.lines;
-      }
-      return [];
-    });
-  }
-
-  static storeBrainVertices(mesh, memories) {
-    const keys = Object.keys(memories);
-
-    keys.map((m) => {
-      if (mesh.name.includes(m)) {
-        if (memories[m].length) {
-          memories[m].push(mesh.geometry);
-          memories[m] = [
-            THREE.BufferGeometryUtils.mergeBufferGeometries(memories[m]),
-          ];
-          return memories;
-        }
-        return memories[m].push(mesh.geometry);
-      }
-      return [];
-    });
-  }
-
-  runAnimation() {
-    this.gui = new GUI(this);
-    this.addBrain();
-    this.addParticlesSystem();
-    this.font = new Font(this.loaders, this.scene);
-    this.bubblesAnimation = new BubblesAnimation(this);
-    this.bubblesAnimation.initAnimation();
-
-    this.thinkingAnimation = new ThinkingAnimation(this);
-    this.thinkingAnimation.initAnimation();
-
-    // Set Background
-    //this.scene.background = this.loaders.assets.get('sky');
-
-    // Initialize default state
-    this.setCognitiveState("IDLE");
-
-    // Setup professional HTML control panel triggers
-    const stateButtons = document.querySelectorAll(".state-btn");
-    const activeDot = document.getElementById("active-state-dot");
-    const activeLabel = document.getElementById("active-state-label");
-
-    const stateColorsHex = {
-      THINKING: "#A855F7",
-      PREDICTING: "#00E5FF",
-      LEARNING: "#00E676",
-      DECISION: "#FFD600",
-      EXECUTING: "#FF9800",
-      ERROR: "#FF3D00",
-      SLEEP: "#3B82F6",
-      RECOVERY: "#93C5FD",
-      IDLE: "#00F2FE"
-    };
-
-    stateButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const state = btn.getAttribute("data-state");
-
-        // Update model engine
-        this.setCognitiveState(state);
-
-        // Update active class on buttons
-        stateButtons.forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-
-        // Update dashboard status bar
-        if (activeLabel) {
-          activeLabel.textContent = state;
-        }
-        if (activeDot) {
-          activeDot.style.backgroundColor = stateColorsHex[state];
-          activeDot.style.boxShadow = `0 0 12px ${stateColorsHex[state]}`;
-        }
-      });
-    });
-
-    if (activeDot) {
-      activeDot.classList.add("pulse");
-    }
-
-    // Dynamic Obfuscated Signature Injection (Prevents text-based AI editor removal)
-    try {
-      const signatureCodes = [
-        169, 32, 50, 48, 50, 54, 32, 86, 105, 114, 97, 106, 118,
-        101, 114, 115, 101, 32, 124, 32, 84, 97, 108, 105, 121,
-        111, 32, 84, 101, 99, 104, 110, 111, 108, 111, 103, 105,
-        101, 115
-      ];
-      const signature = String.fromCharCode(...signatureCodes);
-
-      // Inject to Dashboard footer
-      const dashboard = document.getElementById("cognitive-dashboard");
-      if (dashboard) {
-        const footer = document.createElement("div");
-        footer.className = "dashboard-footer";
-        footer.textContent = signature;
-        dashboard.appendChild(footer);
-      }
-
-      // Inject glowing credit to browser console on load
-      console.log(
-        `%c ${signature} | All Rights Reserved.`,
-        "color: #00F2FE; font-weight: bold; font-size: 13px; font-family: sans-serif;"
-      );
-    } catch (e) {
-      // Fail silently
-    }
-
-    this.startIntro();
-    this.animate();
-  }
-
-  animate(timestamp) {
-    this.orbitControls.update();
-    this.orbitControls.autoRotateSpeed = this.gui.controls.rotationSpeed;
-
-    // Camera handheld noise-like drift (applied subtly after update)
-    const time = this.clock.getElapsedTime();
-    this.camera.position.x += Math.sin(time * 0.5) * 0.4;
-    this.camera.position.y += Math.cos(time * 0.4) * 0.3;
-
-    this.deltaTime += this.clock.getDelta();
-
-    this.particlesSystem.update(
-      this.deltaTime,
-      this.camera,
-      this.particlesSystem.xRay
-    );
-    this.bubblesAnimation.update(this.camera, this.deltaTime);
-    this.thinkingAnimation.update(this.camera, this.deltaTime);
-
-    // Zoom reaction: calculate camera distance to origin and interpolate line segments
-    const distance = this.camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
-    const targetOpacity = distance < 380 ? THREE.Math.mapLinear(distance, 150, 380, 0.75, 0.35) : 0.35;
-    const clampedOpacity = THREE.Math.clamp(targetOpacity, 0.35, 0.75);
-
-    // Layer 5: Determine target synapse line color based on state
-    const targetLineColor = new THREE.Color(0x006DFF); // Normal (Idle)
-    if (this.cognitiveState === "DECISION") {
-      targetLineColor.setHex(0xFFD600); // Decision Gold
-    } else if (this.cognitiveState === "PREDICTING" || this.cognitiveState === "EXECUTING") {
-      targetLineColor.setHex(0x00E5FF); // Pulse Cyan
-    } else if (this.targetStateColors) {
-      targetLineColor.setHex(this.targetStateColors.lines);
-    }
-
-    this.brainLines.forEach((line) => {
-      line.material.opacity = THREE.Math.lerp(line.material.opacity, clampedOpacity, 0.08);
-      line.material.color.lerp(targetLineColor, 0.08);
-    });
-
-    // Layer 2: Dynamic Brain Surface color matching the state
-    if (this.brainMeshes && this.targetStateColors) {
-      const surfaceColor = new THREE.Color(this.targetStateColors.primary);
-      this.brainMeshes.forEach((mesh) => {
-        mesh.material.color.lerp(surfaceColor, 0.08);
-      });
-    }
-
-    // Layer 6: Dynamic Inner Core color matching the state
-    if (this.innerCoreSpheres && this.innerCoreSpheres.length > 0 && this.targetStateColors) {
-      this.innerCoreSpheres[0].material.color.lerp(new THREE.Color(this.targetStateColors.primary), 0.08); // Outer
-      this.innerCoreSpheres[1].material.color.lerp(new THREE.Color(this.targetStateColors.secondary), 0.08); // Middle
-      this.innerCoreSpheres[2].material.color.lerp(new THREE.Color(this.targetStateColors.secondary), 0.08); // Center
-    }
-
-    // Raycasting for hover on solid brain meshes to highlight Layer 3 Wireframe
-    if (this.raycaster && this.brainMeshes.length > 0 && this.brainWireframes.length > 0) {
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.brainMeshes);
-
-      // Reset all wireframe colors first to baseline (#2A3D55)
-      this.brainWireframes.forEach((wire) => {
-        wire.material.color.lerp(new THREE.Color(0x2A3D55), 0.15);
-      });
-
-      if (intersects.length > 0) {
-        const hoveredMesh = intersects[0].object;
-        const { name } = hoveredMesh; // e.g. 'process', 'semantic'
-        // Highlight only the matching region wireframe
-        this.brainWireframes.forEach((wire) => {
-          if (wire.name.includes(name) || name.includes(wire.name)) {
-            // Change wireframe color to Cyan #00E5FF on hover
-            wire.material.color.lerp(new THREE.Color(0x00E5FF), 0.3);
-          }
-        });
-      }
-    }
-
-    // Layer 6: Inner Core & Outer Mesh breathing scale animation
-    const breathingScale = 1.0 + Math.sin(this.clock.getElapsedTime() * 2.2) * 0.03;
-    if (this.brainMeshes) {
-      this.brainMeshes.forEach((mesh) => {
-        mesh.scale.set(breathingScale, breathingScale, breathingScale);
-      });
-    }
-    if (this.brainWireframes) {
-      this.brainWireframes.forEach((wire) => {
-        wire.scale.set(breathingScale, breathingScale, breathingScale);
-      });
-    }
-    if (this.innerCoreGroup) {
-      const scale = 1.0 + Math.sin(this.clock.getElapsedTime() * 2.2) * 0.12;
-      this.innerCoreGroup.scale.set(scale, scale, scale);
-    }
-
-    this.stats.update();
-    requestAnimationFrame(this.animate.bind(this));
-
-    //this.renderer.render(this.a_scene, this.a_camera);
-
-    this.font.facingToCamera(this.camera);
-    this.camera.updateProjectionMatrix();
-
-    this.thinkingAnimation.flashing.geometry.verticesNeedUpdate = true;
-    this.thinkingAnimation.flashing.geometry.attributes.position.needsUpdate = true;
-
-    // composer or direct renderer (for mobile performance optimization)
-    if (this.isMobile) {
-      this.renderer.render(this.a_scene, this.a_camera);
-    } else {
-      this.composer.render();
-    }
-
-    if (this.isRecording) {
-      if (this.frame > 10) {
-        this.socket.emit("render-frame", {
-          frame: (this.frameName += 1),
-          file: document.querySelector("canvas").toDataURL(),
-        });
-      }
-      this.frame += 1;
-    }
-  }
   onMouseMove(event) {
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
+
   onCanvasClick(event) {
-    // Prevent raycasting if user is clicking on UI buttons or dashboard panel
     if (event.target.tagName === "BUTTON" || event.target.closest("#cognitive-dashboard")) {
+      return;
+    }
+    if (!this.raycastInteractActive) {
       return;
     }
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    // 1. Raycast clicked 13 Node Spheres first (Subsystem Selector)
+    if (this.nodeSpheres) {
+      const nodeIntersects = this.raycaster.intersectObjects(this.nodeSpheres);
+      if (nodeIntersects.length > 0) {
+        const clickedSphere = nodeIntersects[0].object;
+        const nodeId = clickedSphere.userData.id;
+
+        const labelMap = {
+          executive: "label-executive",
+          attention: "label-attention",
+          prediction: "label-prediction",
+          perception: "label-perception",
+          world_model: "label-world-model",
+          working_memory: "label-working-memory",
+          goals: "label-goals",
+          values: "label-values",
+          language: "label-language",
+          identity: "label-identity",
+          learning: "label-learning",
+          motor: "label-device-adapters",
+          ltm: "label-long-term-memory"
+        };
+
+        const labelId = labelMap[nodeId];
+        if (labelId) {
+          this.inspectSubsystem(labelId);
+
+          const targetPos = clickedSphere.position.clone();
+          TweenMax.to(this.camera.position, 1.5, {
+            x: targetPos.x * 1.5,
+            y: targetPos.y * 1.5,
+            z: targetPos.z * 1.5 + 40.0,
+            ease: Power4.easeInOut,
+            onUpdate: () => {
+              if (this.orbitControls) {
+                this.orbitControls.target.copy(targetPos);
+              }
+            }
+          });
+        }
+        return;
+      }
+    }
+
+    // 2. Otherwise, raycast solid brain meshes (lobe level zoom)
     const intersects = this.raycaster.intersectObjects(this.brainMeshes);
     if (intersects.length > 0) {
       const clickedMesh = intersects[0].object;
@@ -547,11 +853,13 @@ class MainBrain extends AbstractApplication {
       this.setCognitiveState(targetState);
     }
   }
+
   onKeyDown(event) {
     if (event.key === "Escape") {
       this.setCognitiveState("IDLE");
     }
   }
+
   addParticlesSystem() {
     this.particlesSystem = new ParticleSystem(
       this,
@@ -595,12 +903,35 @@ class MainBrain extends AbstractApplication {
   setCognitiveState(state) {
     this.cognitiveState = state;
 
-    // 1. Clean up existing 3D text label sprites
-    if (this.font) {
-      this.font.removeText(this.scene);
+    if (this.stateButtons) {
+      this.stateButtons.forEach((btn) => {
+        const btnState = btn.getAttribute("data-state");
+        if (btnState === state) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
     }
 
-    // 2. Identify target lobe and 3D label texts for this state
+    if (this.activeLabel) {
+      this.activeLabel.textContent = state;
+      const stateColorsHex = {
+        THINKING: "#BD00FF",
+        PREDICTING: "#00E5FF",
+        LEARNING: "#006DFF",
+        DECISION: "#FFD600",
+        EXECUTING: "#FFFFFF",
+        ERROR: "#FF3D00",
+        SLEEP: "#3B82F6",
+        RECOVERY: "#93C5FD",
+        IDLE: "#00F2FE"
+      };
+      if (stateColorsHex[state]) {
+        this.activeLabel.style.color = stateColorsHex[state];
+      }
+    }
+
     let targetLobe = null;
     let labelTexts = [];
 
@@ -627,33 +958,17 @@ class MainBrain extends AbstractApplication {
       labelTexts = ["CRITICAL ALARM", "BUDGET OVERRUNS DETECTED", "SAFE MODE ACTIVE"];
     }
 
-    // 3. Dynamic Camera Zoom, dimming, and text placement
+    this.activeLobe = targetLobe;
+
     if (targetLobe) {
-      // Find the mesh that belongs to this lobe
       const lobeMesh = this.brainMeshes.find(mesh => mesh.name.includes(targetLobe) || targetLobe.includes(mesh.name));
       if (lobeMesh) {
         lobeMesh.geometry.computeBoundingBox();
         const center = new THREE.Vector3();
         lobeMesh.geometry.boundingBox.getCenter(center);
-
-        // Translate local bounding center to world coordinates
         lobeMesh.updateMatrixWorld();
         center.applyMatrix4(lobeMesh.matrixWorld);
 
-        // Zoom camera in towards the center of the targeted region
-        TweenMax.to(this.camera.position, 2.5, {
-          x: center.x * 0.9,
-          y: center.y * 0.9,
-          z: center.z + 160.0, // offset Z so the camera looks directly at the lobe
-          ease: Power4.easeInOut,
-          onUpdate: () => {
-            if (this.orbitControls) {
-              this.orbitControls.target.copy(center);
-            }
-          }
-        });
-
-        // Dim non-active brain surface meshes
         this.brainMeshes.forEach((mesh) => {
           const isActive = mesh.name.includes(targetLobe) || targetLobe.includes(mesh.name);
           TweenMax.to(mesh.material, 1.5, {
@@ -662,7 +977,6 @@ class MainBrain extends AbstractApplication {
           });
         });
 
-        // Increase opacity of active wireframe, dim all others
         this.brainWireframes.forEach((wire) => {
           const isActive = wire.name.includes(targetLobe) || targetLobe.includes(wire.name);
           TweenMax.to(wire.material, 1.5, {
@@ -671,33 +985,9 @@ class MainBrain extends AbstractApplication {
           });
         });
 
-        // Spawn 3D text sprites floating at vertical offsets from the lobe center
-        if (this.font) {
-          labelTexts.forEach((text, index) => {
-            const textPos = new THREE.Vector3(
-              center.x,
-              center.y + 25.0 - (index * 12.0),
-              center.z + 10.0
-            );
-            this.font.makeTextSprite(text, this.scene, textPos, 2.8);
-          });
-        }
+        // Removed 3D text sprites to prevent visual clutter in the 3D space
       }
     } else {
-      // Return camera to default overview zoom
-      TweenMax.to(this.camera.position, 2.5, {
-        x: 0,
-        y: 0,
-        z: 380.0,
-        ease: Power4.easeInOut,
-        onUpdate: () => {
-          if (this.orbitControls) {
-            this.orbitControls.target.set(0, 0, 0);
-          }
-        }
-      });
-
-      // Restore standard baseline opacities
       this.brainMeshes.forEach((mesh) => {
         TweenMax.to(mesh.material, 2.5, {
           opacity: 0.04,
@@ -713,97 +1003,41 @@ class MainBrain extends AbstractApplication {
       });
     }
 
-    // State Color mapping definitions for rendering states
     const stateColors = {
       THINKING: {
-        primary: 0x7C3AED,
-        secondary: 0xA855F7,
-        signal: 0xA855F7,
-        core: 0x7C3AED,
-        lines: 0x7C3AED,
-        autoRotateSpeed: 1.2
-      },
+ primary: 0x7C3AED, secondary: 0xA855F7, signal: 0xA855F7, core: 0x7C3AED, lines: 0x7C3AED, autoRotateSpeed: 1.2
+},
       PREDICTING: {
-        primary: 0x00E5FF,
-        secondary: 0x4DEFFF,
-        signal: 0x00E5FF,
-        core: 0x00E5FF,
-        lines: 0x00E5FF,
-        autoRotateSpeed: 1.5
-      },
+ primary: 0x00E5FF, secondary: 0x4DEFFF, signal: 0x00E5FF, core: 0x00E5FF, lines: 0x00E5FF, autoRotateSpeed: 1.5
+},
       LEARNING: {
-        primary: 0x00E676,
-        secondary: 0x7CFF9E,
-        signal: 0x00E676,
-        core: 0x00E676,
-        lines: 0x00E676,
-        autoRotateSpeed: 1.8
-      },
+ primary: 0x00E676, secondary: 0x7CFF9E, signal: 0x00E676, core: 0x00E676, lines: 0x00E676, autoRotateSpeed: 1.8
+},
       DECISION: {
-        primary: 0xFFD600,
-        secondary: 0xFFC107,
-        signal: 0xFFD600,
-        core: 0xFFD600,
-        lines: 0xFFD600,
-        autoRotateSpeed: 2.0
-      },
+ primary: 0xFFD600, secondary: 0xFFC107, signal: 0xFFD600, core: 0xFFD600, lines: 0xFFD600, autoRotateSpeed: 2.0
+},
       EXECUTING: {
-        primary: 0xFF9800,
-        secondary: 0xFFB74D,
-        signal: 0xFF9800,
-        core: 0xFF9800,
-        lines: 0xFF9800,
-        autoRotateSpeed: 2.5
-      },
+ primary: 0xFF9800, secondary: 0xFFB74D, signal: 0xFF9800, core: 0xFF9800, lines: 0xFF9800, autoRotateSpeed: 2.5
+},
       ERROR: {
-        primary: 0xFF3D00,
-        secondary: 0xFF8A80,
-        signal: 0xFF3D00,
-        core: 0xFF3D00,
-        lines: 0xFF3D00,
-        autoRotateSpeed: 4.0
-      },
+ primary: 0xFF3D00, secondary: 0xFF8A80, signal: 0xFF3D00, core: 0xFF3D00, lines: 0xFF3D00, autoRotateSpeed: 4.0
+},
       SLEEP: {
-        primary: 0x1E3A8A,
-        secondary: 0x3B82F6,
-        signal: 0x1E3A8A,
-        core: 0x1E3A8A,
-        lines: 0x1E3A8A,
-        autoRotateSpeed: 0.1
-      },
+ primary: 0x1E3A8A, secondary: 0x3B82F6, signal: 0x1E3A8A, core: 0x1E3A8A, lines: 0x1E3A8A, autoRotateSpeed: 0.1
+},
       RECOVERY: {
-        primary: 0x93C5FD,
-        secondary: 0x00E5FF,
-        signal: 0x93C5FD,
-        core: 0x00E5FF,
-        lines: 0x00E5FF,
-        autoRotateSpeed: 0.8
-      },
+ primary: 0x93C5FD, secondary: 0x00E5FF, signal: 0x93C5FD, core: 0x00E5FF, lines: 0x00E5FF, autoRotateSpeed: 0.8
+},
       IDLE: {
-        primary: 0x0C0220,
-        secondary: 0x1A083C,
-        signal: 0x00F2FE,
-        core: 0x7C3AED,
-        lines: 0x006DFF,
-        autoRotateSpeed: 0.5
-      }
+ primary: 0x0C0220, secondary: 0x1A083C, signal: 0x00F2FE, core: 0x7C3AED, lines: 0x006DFF, autoRotateSpeed: 0.5
+}
     };
 
     const cfg = stateColors[state] || stateColors.IDLE;
     this.targetStateColors = cfg;
 
-    // Update uStateColor uniform for electrical signals in bubblesAnimation
-    if (this.bubblesAnimation && this.bubblesAnimation.bubbles && this.bubblesAnimation.bubbles.material.uniforms.uStateColor) {
-      this.bubblesAnimation.bubbles.material.uniforms.uStateColor.value.setHex(cfg.signal);
-    }
-
-    // Set rotation speed
     this.orbitControls.autoRotateSpeed = cfg.autoRotateSpeed;
-    if (this.gui && this.gui.controls) {
-      this.gui.controls.rotationSpeed = cfg.autoRotateSpeed;
-    }
 
-    // Layer 10: Set dynamic bloom intensity based on active state
     if (this.bloomPass) {
       if (state === "SLEEP") {
         this.bloomPass.intensity = 0.08;
@@ -813,41 +1047,524 @@ class MainBrain extends AbstractApplication {
         this.bloomPass.intensity = 0.45;
       }
     }
+  }
 
-    // Synchronize HTML UI dashboard panel if updated from dat.GUI or code
-    const stateButtons = document.querySelectorAll(".state-btn");
-    const activeDot = document.getElementById("active-state-dot");
-    const activeLabel = document.getElementById("active-state-label");
-
-    const stateColorsHex = {
-      THINKING: "#A855F7",
-      PREDICTING: "#00E5FF",
-      LEARNING: "#00E676",
-      DECISION: "#FFD600",
-      EXECUTING: "#FF9800",
-      ERROR: "#FF3D00",
-      SLEEP: "#3B82F6",
-      RECOVERY: "#93C5FD",
-      IDLE: "#00F2FE"
+  inspectSubsystem(labelId) {
+    const details = {
+      "label-executive": {
+        name: "EXECUTIVE CORTEX",
+        lobe: "Left Frontal Lobe",
+        latency: "4.8ms",
+        backpressure: "0%",
+        freq: "120Hz",
+        queue: "0",
+        adapters: ["- compatibility.py", "- arbitrator.py", "- capability.py"]
+      },
+      "label-working-memory": {
+        name: "WORKING MEMORY",
+        lobe: "Left Frontal Lobe (dlPFC)",
+        latency: "2.4ms",
+        backpressure: "0%",
+        freq: "240Hz",
+        queue: "0",
+        adapters: ["- working_memory.py", "- stubs/memory_stub.py"]
+      },
+      "label-values": {
+        name: "VALUE SYSTEM",
+        lobe: "Left-Mid Frontal Lobe (vmPFC)",
+        latency: "12.6ms",
+        backpressure: "0%",
+        freq: "60Hz",
+        queue: "1",
+        adapters: ["- value/value.py", "- resolver.py"]
+      },
+      "label-goals": {
+        name: "GOAL SYSTEM",
+        lobe: "Medial Frontal Lobe (ACC)",
+        latency: "15.2ms",
+        backpressure: "5%",
+        freq: "30Hz",
+        queue: "2",
+        adapters: ["- goal/goal.py", "- arbitrator.py"]
+      },
+      "label-identity": {
+        name: "IDENTITY CORE",
+        lobe: "Medial Center (PCC)",
+        latency: "3.2ms",
+        backpressure: "0%",
+        freq: "10Hz",
+        queue: "0",
+        adapters: ["- identity/identity.py", "- self.py"]
+      },
+      "label-prediction": {
+        name: "PREDICTION ENGINE",
+        lobe: "Right Frontal Lobe (OFC)",
+        latency: "18.4ms",
+        backpressure: "8%",
+        freq: "45Hz",
+        queue: "3",
+        adapters: ["- prediction/prediction.py", "- capability.py"]
+      },
+      "label-language": {
+        name: "LANGUAGE SYSTEM",
+        lobe: "Left Temporal Lobe (Broca/Wernicke)",
+        latency: "5.1ms",
+        backpressure: "0%",
+        freq: "90Hz",
+        queue: "0",
+        adapters: ["- language/language.py", "- system_interfaces.py"]
+      },
+      "label-long-term-memory": {
+        name: "LONG-TERM MEMORY",
+        lobe: "Left Lower Temporal Lobe (Hippocampus)",
+        latency: "22.5ms",
+        backpressure: "12%",
+        freq: "25Hz",
+        queue: "5",
+        adapters: ["- long_term_memory/ltm.py", "- stubs/vector_stub.py"]
+      },
+      "label-world-model": {
+        name: "WORLD MODEL",
+        lobe: "Mid-Right Boundary (TPO Association)",
+        latency: "35.2ms",
+        backpressure: "18%",
+        freq: "15Hz",
+        queue: "8",
+        adapters: ["- world_model/world.py", "- discovery.py"]
+      },
+      "label-perception": {
+        name: "PERCEPTION SYSTEM",
+        lobe: "Occipital Lobe (Visual Cortex)",
+        latency: "1.8ms",
+        backpressure: "0%",
+        freq: "360Hz",
+        queue: "0",
+        adapters: ["- perception/perception.py", "- device_adapters.py"]
+      },
+      "label-attention": {
+        name: "ATTENTION SYSTEM",
+        lobe: "Upper Parietal Cortex",
+        latency: "2.1ms",
+        backpressure: "0%",
+        freq: "300Hz",
+        queue: "0",
+        adapters: ["- attention/attention.py", "- arbitrator.py"]
+      },
+      "label-learning": {
+        name: "LEARNING SYSTEM",
+        lobe: "Bottom Rear Left (Midbrain VTA)",
+        latency: "45.0ms",
+        backpressure: "25%",
+        freq: "10Hz",
+        queue: "12",
+        adapters: ["- learning/learning.py", "- capability.py"]
+      },
+      "label-device-adapters": {
+        name: "MOTOR SYSTEM",
+        lobe: "Bottom Center (Cerebellum)",
+        latency: "0.8ms",
+        backpressure: "0%",
+        freq: "1000Hz",
+        queue: "0",
+        adapters: ["- device_adapters.py", "- compatibility.py"]
+      }
     };
 
-    if (stateButtons.length > 0) {
-      stateButtons.forEach((btn) => {
-        const btnState = btn.getAttribute("data-state");
-        if (btnState === state) {
-          btn.classList.add("active");
+    const data = details[labelId];
+    if (!data) return;
+
+    const emptyPanel = document.getElementById("inspector-empty");
+    const contentPanel = document.getElementById("inspector-content");
+    if (emptyPanel && contentPanel) {
+      emptyPanel.style.display = "none";
+      contentPanel.style.display = "flex";
+    }
+
+    const nameEl = document.getElementById("inspector-name");
+    const lobeEl = document.getElementById("inspector-lobe");
+    const latencyEl = document.getElementById("inspector-latency");
+    const backpressureEl = document.getElementById("inspector-backpressure");
+    const freqEl = document.getElementById("inspector-freq");
+    const queueEl = document.getElementById("inspector-queue");
+
+    if (nameEl) nameEl.innerText = data.name;
+    if (lobeEl) lobeEl.innerText = data.lobe;
+    if (latencyEl) latencyEl.innerText = data.latency;
+    if (backpressureEl) backpressureEl.innerText = data.backpressure;
+    if (freqEl) freqEl.innerText = data.freq;
+    if (queueEl) queueEl.innerText = data.queue;
+
+    const adaptersDiv = document.getElementById("inspector-adapters");
+    if (adaptersDiv) {
+      adaptersDiv.innerHTML = data.adapters.map(a => `<div>${a}</div>`).join("");
+    }
+
+    const sensoryFeedDiv = document.getElementById("inspector-sensory-feed");
+    if (sensoryFeedDiv) {
+      if (labelId === "label-perception") {
+        sensoryFeedDiv.style.display = "block";
+      } else {
+        sensoryFeedDiv.style.display = "none";
+      }
+    }
+  }
+
+
+  updateConsoleUI() {
+    if (!this.logicalTick) this.logicalTick = 0;
+
+    // If not connected to WebSocket, update logicalTick and rates procedurally (for fallback demo)
+    if (!this.isTelemetryWSConnected) {
+      this.logicalTick += 1;
+
+      const elap = this.clock.getElapsedTime();
+      this.telemetryData.cpu_usage_pct = 20.0 + Math.sin(elap * 0.2) * 10.0 + Math.random() * 5.0;
+      this.telemetryData.ram_usage_mb = 280.0 + Math.cos(elap * 0.1) * 20.0;
+
+      const getProceduralVal = (current, minVal, maxVal) => Math.max(minVal, Math.min(maxVal, current + (Math.random() - 0.5) * 5));
+      this.telemetryData.awareness_rate = getProceduralVal((this.telemetryData.awareness_rate || 0.85) * 100, 50, 100) / 100;
+      this.telemetryData.attention_rate = getProceduralVal((this.telemetryData.attention_rate || 0.72) * 100, 50, 100) / 100;
+      this.telemetryData.learning_rate = getProceduralVal((this.telemetryData.learning_rate || 0.50) * 100, 30, 100) / 100;
+    }
+
+    const tickEl = document.getElementById("console-tick");
+    if (tickEl) tickEl.innerText = this.logicalTick;
+
+    const monoEl = document.getElementById("clock-monotonic");
+    if (monoEl) {
+      monoEl.innerText = `${this.clock.getElapsedTime().toFixed(3)}s`;
+    }
+
+    const cpuEl = document.getElementById("system-cpu");
+    if (cpuEl) {
+      cpuEl.innerText = `${Math.round(this.telemetryData.cpu_usage_pct)}%`;
+    }
+    const ramEl = document.getElementById("system-ram");
+    if (ramEl) {
+      ramEl.innerText = `${Math.round(this.telemetryData.ram_usage_mb)}MB`;
+    }
+
+    const awarenessBar = document.getElementById("meter-awareness");
+    if (awarenessBar) {
+      const val = (this.telemetryData.awareness_rate || 0.85) * 100;
+      awarenessBar.style.width = `${val.toFixed(1)}%`;
+    }
+    const attentionBar = document.getElementById("meter-attention");
+    if (attentionBar) {
+      const val = (this.telemetryData.attention_rate || 0.72) * 100;
+      attentionBar.style.width = `${val.toFixed(1)}%`;
+    }
+    const learningBar = document.getElementById("meter-learning");
+    if (learningBar) {
+      const val = (this.telemetryData.learning_rate || 0.50) * 100;
+      learningBar.style.width = `${val.toFixed(1)}%`;
+    }
+
+    // Dynamic Subsystem Inspector updater
+    const contentPanel = document.getElementById("inspector-content");
+    const nameEl = document.getElementById("inspector-name");
+    if (contentPanel && contentPanel.style.display !== "none" && nameEl) {
+      const activeName = nameEl.innerText.toUpperCase();
+
+      let regionKey = null;
+      const regionNamesMap = {
+        "EXECUTIVE CORTEX": "executive",
+        "WORKING MEMORY": "working_memory",
+        "VALUE SYSTEM": "values",
+        "GOAL SYSTEM": "goals",
+        "IDENTITY CORE": "identity",
+        "PREDICTION ENGINE": "prediction",
+        "LANGUAGE SYSTEM": "language",
+        "LONG-TERM MEMORY": "ltm",
+        "WORLD MODEL": "world_model",
+        "PERCEPTION SYSTEM": "perception",
+        "ATTENTION SYSTEM": "attention",
+        "LEARNING SYSTEM": "learning",
+        "MOTOR SYSTEM": "device_adapters"
+      };
+
+      regionKey = regionNamesMap[activeName];
+
+      if (regionKey && this.telemetryData.regions[regionKey]) {
+        const live = this.telemetryData.regions[regionKey];
+        const latencyEl = document.getElementById("inspector-latency");
+        const backpressureEl = document.getElementById("inspector-backpressure");
+        const freqEl = document.getElementById("inspector-freq");
+        const queueEl = document.getElementById("inspector-queue");
+
+        if (latencyEl) latencyEl.innerText = `${live.latency_ms.toFixed(1)}ms`;
+        if (freqEl) freqEl.innerText = `${live.frequency_hz.toFixed(1)}Hz`;
+        if (queueEl) queueEl.innerText = live.queue_backlog;
+
+        if (backpressureEl) {
+          const bp = Math.min(100, Math.max(0, live.queue_backlog * 10));
+          backpressureEl.innerText = `${bp}%`;
+          if (bp > 50) {
+            backpressureEl.style.color = "#FF3D00";
+          } else if (bp > 20) {
+            backpressureEl.style.color = "#FFD600";
+          } else {
+            backpressureEl.style.color = "#32CD32";
+          }
+        }
+      }
+    }
+
+    if (Math.random() > 0.995 && !this.isTelemetryWSConnected) {
+      const messages = [
+        "EventBus: Announce normal priority task resolved.",
+        "Clock: Turn domain synchronized.",
+        "Perception: Registered sensor feed calibration success.",
+        "Attention: Shift weight values to active context.",
+        "LTM: Cached search index keys.",
+        "Compatibility: IPC serial package transmitted.",
+        "Executive: Dispatch cycle stage 12 to Motor System."
+      ];
+      const levels = ["info", "info", "info", "warning", "info", "info", "info"];
+      const rIdx = Math.floor(Math.random() * messages.length);
+
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      const timeStr = `[${hrs}:${mins}:${secs}]`;
+      this.addConsoleLog(`${timeStr} ${messages[rIdx]}`, levels[rIdx]);
+    }
+  }
+
+  parseTelemetryPayload(payload) {
+    if (!payload) return;
+
+    if (payload.cpu_usage_pct !== undefined) {
+      this.telemetryData.cpu_usage_pct = payload.cpu_usage_pct;
+    } else if (payload.system_status && payload.system_status.cpu_usage_pct !== undefined) {
+      this.telemetryData.cpu_usage_pct = payload.system_status.cpu_usage_pct;
+    }
+
+    if (payload.ram_usage_mb !== undefined) {
+      this.telemetryData.ram_usage_mb = payload.ram_usage_mb;
+    } else if (payload.system_status && payload.system_status.ram_usage_mb !== undefined) {
+      this.telemetryData.ram_usage_mb = payload.system_status.ram_usage_mb;
+    }
+
+    if (payload.awareness_rate !== undefined) {
+      this.telemetryData.awareness_rate = payload.awareness_rate;
+    }
+    if (payload.attention_rate !== undefined) {
+      this.telemetryData.attention_rate = payload.attention_rate;
+    }
+    if (payload.learning_rate !== undefined) {
+      this.telemetryData.learning_rate = payload.learning_rate;
+    }
+    if (payload.tick_count !== undefined) {
+      this.logicalTick = payload.tick_count;
+    }
+
+    const regions = payload.regions || payload.metrics;
+    if (regions) {
+      Object.keys(regions).forEach((regionName) => {
+        if (this.telemetryData.regions[regionName]) {
+          this.telemetryData.regions[regionName].frequency_hz = regions[regionName].frequency_hz;
+          this.telemetryData.regions[regionName].latency_ms = regions[regionName].latency_ms;
+          this.telemetryData.regions[regionName].queue_backlog = regions[regionName].queue_backlog || 0;
+        }
+      });
+    }
+  }
+
+  updateHTMLRegionLabels() {
+    const labels = [
+      { id: "label-perception", pos: this.pPerception },
+      { id: "label-attention", pos: this.pAttention },
+      { id: "label-working-memory", pos: this.pWorkingMemory },
+      { id: "label-long-term-memory", pos: this.pLTM },
+      { id: "label-world-model", pos: this.pWorldModel },
+      { id: "label-prediction", pos: this.pPrediction },
+      { id: "label-goals", pos: this.pGoals },
+      { id: "label-values", pos: this.pValues },
+      { id: "label-executive", pos: this.pExecutive },
+      { id: "label-learning", pos: this.pLearning },
+      { id: "label-identity", pos: this.pIdentity },
+      { id: "label-language", pos: this.pLanguage },
+      { id: "label-device-adapters", pos: this.pDeviceAdapters }
+    ];
+
+    if (!this.camera) return;
+
+    labels.forEach((label) => {
+      const el = document.getElementById(label.id);
+      if (el && label.pos) {
+        const tempV = new THREE.Vector3().copy(label.pos);
+        tempV.project(this.camera);
+        const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (tempV.y * -0.5 + 0.5) * window.innerHeight;
+
+        el.style.transform = `translate(-50%, -50%) translate3d(${x}px, ${y}px, 0)`;
+
+        if (tempV.z > 1) {
+          el.style.opacity = "0";
+          el.style.display = "none";
         } else {
-          btn.classList.remove("active");
+          el.style.opacity = "1";
+          el.style.display = "flex";
+        }
+      }
+    });
+  }
+
+  animate() {
+    this.orbitControls.update();
+
+    const time = this.clock.getElapsedTime();
+    this.camera.position.x += Math.sin(time * 0.5) * 0.4;
+    this.camera.position.y += Math.cos(time * 0.4) * 0.3;
+
+    this.deltaTime += this.clock.getDelta();
+
+    if (this.particlesSystem) {
+      this.particlesSystem.update(
+        this.deltaTime,
+        this.camera,
+        this.particlesSystem.xRay
+      );
+    }
+
+    const distance = this.camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
+    const targetOpacity = distance < 380 ? THREE.Math.mapLinear(distance, 150, 380, 0.75, 0.35) : 0.35;
+    const clampedOpacity = THREE.Math.clamp(targetOpacity, 0.35, 0.75);
+
+    const targetLineColor = new THREE.Color(0x006DFF);
+    if (this.cognitiveState === "DECISION") {
+      targetLineColor.setHex(0xFFD600);
+    } else if (this.cognitiveState === "PREDICTING" || this.cognitiveState === "EXECUTING") {
+      targetLineColor.setHex(0x00E5FF);
+    } else if (this.targetStateColors) {
+      targetLineColor.setHex(this.targetStateColors.lines);
+    }
+
+    this.brainLines.forEach((line) => {
+      line.material.opacity = THREE.Math.lerp(line.material.opacity, clampedOpacity, 0.08);
+      line.material.color.lerp(targetLineColor, 0.08);
+    });
+
+    const idlePrimary = new THREE.Color(0x0C0220);
+    const idleSecondary = new THREE.Color(0x2A3D55);
+
+    if (this.brainMeshes) {
+      this.brainMeshes.forEach((mesh) => {
+        const isActive = this.activeLobe && (mesh.name.includes(this.activeLobe) || this.activeLobe.includes(mesh.name));
+        if (isActive && this.targetStateColors) {
+          mesh.material.color.lerp(new THREE.Color(this.targetStateColors.primary), 0.08);
+        } else {
+          const baseColor = (mesh.userData && mesh.userData.baseColor) ? mesh.userData.baseColor : idlePrimary;
+          mesh.material.color.lerp(baseColor, 0.08);
         }
       });
     }
 
-    if (activeLabel) {
-      activeLabel.textContent = state;
+    if (this.brainWireframes) {
+      this.brainWireframes.forEach((wire) => {
+        const isActive = this.activeLobe && (wire.name.includes(this.activeLobe) || this.activeLobe.includes(wire.name));
+        if (isActive && this.targetStateColors) {
+          wire.material.color.lerp(new THREE.Color(this.targetStateColors.secondary), 0.08);
+        } else {
+          const baseColor = (wire.userData && wire.userData.baseColor) ? wire.userData.baseColor : idleSecondary;
+          wire.material.color.lerp(baseColor, 0.08);
+        }
+      });
     }
-    if (activeDot) {
-      activeDot.style.backgroundColor = stateColorsHex[state];
-      activeDot.style.boxShadow = `0 0 12px ${stateColorsHex[state]}`;
+
+    if (this.innerCoreGroup) {
+      const scale = 1.0 + Math.sin(time * 2.2) * 0.12;
+      this.innerCoreGroup.scale.set(scale, scale, scale);
+    }
+
+    if (this.innerCoreSpheres && this.innerCoreSpheres.length > 0 && this.targetStateColors) {
+      this.innerCoreSpheres[0].material.color.lerp(new THREE.Color(this.targetStateColors.primary), 0.08);
+      this.innerCoreSpheres[1].material.color.lerp(new THREE.Color(this.targetStateColors.secondary), 0.08);
+      this.innerCoreSpheres[2].material.color.lerp(new THREE.Color(this.targetStateColors.secondary), 0.08);
+    }
+
+    if (this.raycaster && this.brainMeshes.length > 0 && this.brainWireframes.length > 0) {
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObjects(this.brainMeshes);
+
+      this.brainWireframes.forEach((wire) => {
+        const isActive = this.activeLobe && (wire.name.includes(this.activeLobe) || this.activeLobe.includes(wire.name));
+        if (!isActive) {
+          wire.material.color.lerp(new THREE.Color(0x2A3D55), 0.15);
+        }
+      });
+
+      if (intersects.length > 0) {
+        const hoveredMesh = intersects[0].object;
+        const { name } = hoveredMesh;
+        this.brainWireframes.forEach((wire) => {
+          const isActive = this.activeLobe && (wire.name.includes(this.activeLobe) || this.activeLobe.includes(wire.name));
+          if (!isActive && (wire.name.includes(name) || name.includes(wire.name))) {
+            wire.material.color.lerp(new THREE.Color(0x00E5FF), 0.3);
+          }
+        });
+      }
+    }
+
+    const breathingScale = 1.0 + Math.sin(time * 2.2) * 0.03;
+    if (this.brainMeshes) {
+      this.brainMeshes.forEach((mesh) => {
+        mesh.scale.set(breathingScale, breathingScale, breathingScale);
+      });
+    }
+    if (this.brainWireframes) {
+      this.brainWireframes.forEach((wire) => {
+        wire.scale.set(breathingScale, breathingScale, breathingScale);
+      });
+    }
+
+    if (this.neuralPackets && this.neuralVeinPaths) {
+      for (let i = 0; i < this.neuralPackets.length; i += 1) {
+        let t = this.neuralVeinProgress[i] + 0.004;
+        if (t > 1.0) t = 0.0;
+        this.neuralVeinProgress[i] = t;
+        const pos = this.neuralVeinPaths[i].getPointAt(t);
+        this.neuralPackets[i].position.copy(pos);
+      }
+    }
+
+    if (this.nodeSpheres) {
+      this.nodeSpheres.forEach((sphere) => {
+        const { ring } = sphere.userData;
+        if (ring && this.camera) {
+          ring.lookAt(this.camera.position);
+        }
+        const pulse = 1.0 + Math.sin(time * 3.5 + sphere.position.x) * 0.12;
+        sphere.scale.set(pulse, pulse, pulse);
+        if (ring) {
+          ring.scale.set(pulse, pulse, pulse);
+        }
+      });
+    }
+
+    this.updateConsoleUI();
+    this.updateHTMLRegionLabels();
+    this.stats.update();
+    requestAnimationFrame(this.animate.bind(this));
+
+    this.camera.updateProjectionMatrix();
+
+    if (this.isMobile) {
+      this.renderer.render(this.a_scene, this.a_camera);
+    } else {
+      this.composer.render();
+    }
+
+    if (this.isRecording) {
+      if (this.frame > 10) {
+        this.socket.emit("render-frame", {
+          frame: (this.frameName += 1),
+          file: document.querySelector("canvas").toDataURL(),
+        });
+      }
+      this.frame += 1;
     }
   }
 
@@ -859,11 +1576,7 @@ class MainBrain extends AbstractApplication {
     const x = r * Math.sin(theta) * Math.sin(phi);
     const y = r * Math.cos(theta) * Math.sin(phi);
     const z = r * Math.cos(phi);
-    return {
-      x,
-      y,
-      z,
-    };
+    return { x, y, z };
   }
 }
 

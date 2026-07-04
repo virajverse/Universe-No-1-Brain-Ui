@@ -43,7 +43,7 @@ class BubblesAnimation {
             const y = memory[(randomPos * 3) + 1] || 0;
             const z = memory[(randomPos * 3) + 2] || 0;
             let altitude = THREE.Math.randInt(120, 150);
-            const parent = this.mainBrain.particlesSystem.particles;
+            const parent = this.mainBrain.scene;
 
             if (winner === m.subsystem) {
                 altitude = 200; // highest position
@@ -52,13 +52,13 @@ class BubblesAnimation {
                 const material = new THREE.MeshNormalMaterial();
 
                 const mesh = new THREE.Mesh(geometry, material);
-                parent.add(mesh);
+                // parent.add(mesh); // DISABLED: Keep visual twin clean and contained
                 mesh.position.set(x, y, z);
 
                 bubbleList.push(x, y + 150.0, z, 3.0); // w = 3.0 for the winner
             }
             const group = new THREE.Object3D();
-            parent.add(group);
+            // parent.add(group); // DISABLED: Keep visual twin clean and contained
         });
 
         // Inject bubbles selected in to the all flashing bubbles replace the older one
@@ -133,7 +133,7 @@ class BubblesAnimation {
         const { scene, camera, memories } = this.mainBrain;
 
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const particles = isMobile ? 15000 : 40000;
+        const particles = isMobile ? 150 : 350; // Sparse distinct memory signal pulses
         const geometry = new THREE.BufferGeometry();
         const sizes = [];
         const positions = [];
@@ -148,9 +148,14 @@ class BubblesAnimation {
         for (let i = 0; i < particles - (this.memorySelected.length * 3); i += 1) {
             const r = THREE.Math.randInt(0, 4);
             const mSelector = this.memorySelected[r];
-            const x = memories[mSelector][0].attributes.position.array[(i * 3) + 0] || 0;
-            const y = memories[mSelector][0].attributes.position.array[(i * 3) + 1] || 0;
-            const z = memories[mSelector][0].attributes.position.array[(i * 3) + 2] || 0;
+            const rawX = memories[mSelector][0].attributes.position.array[(i * 3) + 0] || 0;
+            const rawY = memories[mSelector][0].attributes.position.array[(i * 3) + 1] || 0;
+            const rawZ = memories[mSelector][0].attributes.position.array[(i * 3) + 2] || 0;
+
+            // Scale coordinates inward by 12% to keep bubbles strictly inside the core wireframe veins
+            const x = rawX * 0.88;
+            const y = rawY * 0.88;
+            const z = rawZ * 0.88;
 
             positions.push(x, y, z);
             memory.push(x, y, z, r);
@@ -167,14 +172,19 @@ class BubblesAnimation {
             }
             colors.push(bubbleColor.r, bubbleColor.g, bubbleColor.b);
 
-            sizes[i] = THREE.Math.randFloat(10.0, 20.0);
+            sizes[i] = THREE.Math.randFloat(4.0, 7.0); // Small action-potential dots
             if ((i % 100) === 0) {
                 // Find another random vertex of the same brain region (vein pathway) to shoot towards
                 const regionPositions = memories[mSelector][0].attributes.position.array;
                 const targetIdx = THREE.Math.randInt(0, (regionPositions.length / 3) - 1);
-                const tx = regionPositions[targetIdx * 3 + 0] || 0;
-                const ty = regionPositions[targetIdx * 3 + 1] || 0;
-                const tz = regionPositions[targetIdx * 3 + 2] || 0;
+                const rawTx = regionPositions[targetIdx * 3 + 0] || 0;
+                const rawTy = regionPositions[targetIdx * 3 + 1] || 0;
+                const rawTz = regionPositions[targetIdx * 3 + 2] || 0;
+
+                // Scale target inward as well to maintain containment
+                const tx = rawTx * 0.88;
+                const ty = rawTy * 0.88;
+                const tz = rawTz * 0.88;
                 bubbles.push(tx, ty, tz, 1.0);
             } else {
                 bubbles.push(x, y, z, 0.0);
@@ -222,7 +232,8 @@ class BubblesAnimation {
         });
         this.bubbles = new THREE.Points(geometry, customMaterial);
         this.bubbles.name = 'memory';
-        scene.add(this.bubbles);
+        this.bubbles.visible = false; // DISABLED: Remove flashing internal particles
+        // scene.add(this.bubbles); // DISABLED: Remove flashing internal particles
         console.log('Bubble Object', this.bubbles);
     }
 

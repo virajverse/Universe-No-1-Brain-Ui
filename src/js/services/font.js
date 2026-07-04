@@ -26,6 +26,7 @@ class Font {
             const centerOffset = text.geometry.boundingBox.max.x / 2.0;
             text.position.set(position.x - centerOffset, position.y - 10, position.z);
             text.type = 'Font';
+            text.name = message;
 
             text.material.opacity = 0;
             text.material.transparent = true;
@@ -42,7 +43,7 @@ class Font {
         removeFrom.traverse((obj) => {
             if (obj instanceof THREE.Mesh && obj.type === 'Font') {
                 TweenLite.to(obj.material, 2.5, { ease: Power2.easeOut, opacity: 0.0 });
-                TweenLite.to(obj.position, 2.5, { ease: Power2.easeOut, y: obj.position.y - 10, onComplete: () => { obj.parent.remove(obj); } });
+                TweenLite.to(obj.position, 2.5, { ease: Power2.easeOut, y: obj.position.y - 10, onComplete: () => { if (obj.parent) { obj.parent.remove(obj); } } });
             }
         });
     }
