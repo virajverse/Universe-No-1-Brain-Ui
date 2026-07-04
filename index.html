@@ -68,8 +68,42 @@
     </head>
 
     <body>
+        <!-- Futuristic Sci-Fi HUD Boot Screen Overlay -->
+        <div id="hud-boot-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #020617; z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Outfit', 'Inter', sans-serif; color: #00E5FF; overflow: hidden; box-sizing: border-box; transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform, opacity;">
+            <!-- Scan line effect overlay -->
+            <div class="hud-scanline"></div>
+            
+            <div class="boot-container" style="width: 90%; max-width: 480px; background: rgba(10, 10, 22, 0.6); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 12px; padding: 30px; box-shadow: 0 0 40px rgba(0, 229, 255, 0.05), inset 0 0 15px rgba(0, 229, 255, 0.02); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); position: relative; will-change: transform, opacity;">
+                
+                <!-- Corner decorative lines -->
+                <div class="hud-corner top-left"></div>
+                <div class="hud-corner top-right"></div>
+                <div class="hud-corner bottom-left"></div>
+                <div class="hud-corner bottom-right"></div>
+
+                <div class="boot-header" style="text-align: center; margin-bottom: 25px;">
+                    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: #a0a0b8;">SYSTEM INITIALIZATION</div>
+                    <h1 style="font-size: 20px; font-weight: 800; margin: 5px 0 0 0; color: #00E5FF; letter-spacing: 0.05em; text-shadow: 0 0 10px rgba(0, 229, 255, 0.4);">UNIVERSE #1 BRAIN</h1>
+                </div>
+
+                <!-- Custom Linear Progress Bar -->
+                <div style="background: rgba(255, 255, 255, 0.05); height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.02); position: relative;">
+                    <div id="boot-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #BD00FF, #00E5FF); box-shadow: 0 0 8px #00E5FF; transition: width 0.3s ease-out; will-change: width;"></div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; color: #a0a0b8; margin-bottom: 20px; font-family: monospace;">
+                    <span id="boot-status">CONNECTING PROTOCOLS...</span>
+                    <span id="boot-percent">0%</span>
+                </div>
+
+                <!-- Boot Console Logs Terminal -->
+                <div id="boot-terminal-lines" class="console-scrollbar" style="height: 120px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 6px; padding: 10px; font-family: 'Courier New', monospace; font-size: 8px; line-height: 1.4; color: #85F7FF; overflow-y: auto; text-align: left; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px;">
+                </div>
+            </div>
+        </div>
+
         <!-- Floating 3D Region Labels Overlay -->
-        <div id="floating-labels-container" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 5;">
+        <div id="floating-labels-container" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 5; opacity: 0; transition: opacity 1.5s ease; will-change: opacity;">
             <!-- Legacy labels kept for compatibility -->
             <div id="label-memory" class="brain-label memory" style="display: none !important;">Long-Term Memory</div>
             <div id="label-reasoning" class="brain-label reasoning" style="display: none !important;">World Model</div>

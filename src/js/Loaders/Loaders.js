@@ -10,26 +10,66 @@ class Loaders {
         this.startAnimation = startAnimation;
         this.onModelLoaded = onModelLoaded;
         this.loadingManager.onLoad = this.handlerLoad.bind(this);
-        this.loadingManager.onProgress = this.handlerProgress;
-        this.loadingManager.onError = this.handlerError;
-        this.loadingManager.onStart = this.handlerStart;
+        this.loadingManager.onProgress = this.handlerProgress.bind(this);
+        this.loadingManager.onError = this.handlerError.bind(this);
+        this.loadingManager.onStart = this.handlerStart.bind(this);
         this.loadBrainTextures();
         this.loadTextures();
         this.loadOBJsAsync();
     }
 
-    static handlerStart() {
-        console.log('Starting');
+    addBootLog(text, isError = false) {
+        const term = document.getElementById('boot-terminal-lines');
+        if (term) {
+            const line = document.createElement('div');
+            line.style.color = isError ? '#FF3D00' : '#85F7FF';
+            line.style.margin = '2px 0';
+            line.style.fontFamily = 'monospace';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        }
     }
-    static handlerProgress(url, itemsLoaded, itemsTotal) {
-        console.log(`Loading file: ${url}.\nLoaded ${itemsLoaded} of ${itemsTotal} files.`);
+
+    handlerStart() {
+        this.addBootLog('INITIATING ASSETS SECURE FETCH...');
+        const statusEl = document.getElementById('boot-status');
+        if (statusEl) statusEl.textContent = 'FETCHING ASSETS...';
     }
+
+    handlerProgress(url, itemsLoaded, itemsTotal) {
+        const pct = Math.round((itemsLoaded / itemsTotal) * 100);
+        const bar = document.getElementById('boot-progress-bar');
+        const percentEl = document.getElementById('boot-percent');
+        const statusEl = document.getElementById('boot-status');
+
+        if (bar) bar.style.width = `${pct}%`;
+        if (percentEl) percentEl.textContent = `${pct}%`;
+
+        const fileName = url.substring(url.lastIndexOf('/') + 1);
+        if (statusEl) statusEl.textContent = `FETCHING: ${fileName}`;
+
+        this.addBootLog(`LOADED: ${fileName} (${itemsLoaded}/${itemsTotal})`);
+    }
+
     handlerLoad() {
-        console.log('loading Complete!');
-        this.startAnimation();
+        this.addBootLog('ALL SYSTEM ASSETS SECURELY CACHED.');
+        const bar = document.getElementById('boot-progress-bar');
+        const percentEl = document.getElementById('boot-percent');
+        const statusEl = document.getElementById('boot-status');
+
+        if (bar) bar.style.width = '100%';
+        if (percentEl) percentEl.textContent = '100%';
+        if (statusEl) statusEl.textContent = 'FETCH COMPLETE.';
+
+        setTimeout(() => {
+            this.startAnimation();
+        }, 800);
     }
-    static handlerError(url) {
-        console.log(`There was an error loading ${url}`);
+
+    handlerError(url) {
+        const fileName = url.substring(url.lastIndexOf('/') + 1);
+        this.addBootLog(`ERROR LOADING: ${fileName}`, true);
     }
 
     loadOBJsAsync() {

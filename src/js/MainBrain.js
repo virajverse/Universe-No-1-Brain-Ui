@@ -700,21 +700,88 @@ class MainBrain extends AbstractApplication {
       // Silent catch
     }
 
-    this.startIntro();
     this.animate();
+
+    // 1. Synthetic high-fidelity boot sequence logs
+    const addBootLog = (text, delay) => {
+      setTimeout(() => {
+        const term = document.getElementById('boot-terminal-lines');
+        if (term) {
+          const line = document.createElement('div');
+          line.style.color = '#85F7FF';
+          line.style.margin = '2px 0';
+          line.style.fontFamily = 'monospace';
+          line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+          term.appendChild(line);
+          term.scrollTop = term.scrollHeight;
+        }
+      }, delay);
+    };
+
+    addBootLog("VALIDATING COGNITIVE ARCHITECTURE BLUEPRINTS...", 150);
+    addBootLog("ESTABLISHING TELEMETRY WS CONNECTION LINK...", 350);
+    addBootLog("MAPPING 13 COGNITIVE SYSTEM LOBES...", 550);
+    addBootLog("INJECTING PROCEDURAL DNA SEED: 829103...", 750);
+    addBootLog("BOOT SUCCESSFUL. ENGAGING VISUAL TELEMETRY...", 950);
+
+    // 2. Trigger HUD panels cascading slide-in and fade overlay out
+    setTimeout(() => {
+      const overlay = document.getElementById('hud-boot-overlay');
+      if (overlay) {
+        overlay.classList.add('boot-fade-out');
+        setTimeout(() => overlay.remove(), 800);
+      }
+
+      // Slide and fade top frame
+      setTimeout(() => {
+        const topEl = document.getElementById('console-top');
+        if (topEl) {
+          topEl.style.transform = 'translate3d(0, 0, 0)';
+          topEl.style.opacity = '1';
+        }
+      }, 100);
+
+      // Slide and fade left frame
+      setTimeout(() => {
+        const leftEl = document.getElementById('console-left');
+        if (leftEl) {
+          leftEl.style.transform = 'translate3d(0, 0, 0)';
+          leftEl.style.opacity = '1';
+        }
+      }, 350);
+
+      // Fade in floating region labels
+      setTimeout(() => {
+        const labelsContainer = document.getElementById('floating-labels-container');
+        if (labelsContainer) {
+          labelsContainer.style.opacity = '1';
+        }
+      }, 600);
+
+      // Start WebGL intro zoom & camera orbit rotation
+      this.startIntro();
+    }, 1200);
   }
 
   startIntro() {
-    const progress = { p: 1000 };
+    const progress = { p: 1200, angle: Math.PI };
     TweenMax.fromTo(
       progress,
-      6.5,
-      { p: 1000 },
+      6.0,
+      { p: 1200, angle: Math.PI },
       {
         p: 380,
+        angle: 0.0,
         ease: Power4.easeInOut,
         onUpdate: () => {
-          this.camera.position.z = progress.p;
+          // Circular horizontal orbit combined with vertical curve
+          this.camera.position.x = Math.sin(progress.angle) * progress.p;
+          this.camera.position.z = Math.cos(progress.angle) * progress.p;
+          this.camera.position.y = 200.0 * (progress.p / 1200.0);
+          this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+          if (this.orbitControls) {
+            this.orbitControls.update();
+          }
         },
         onStart: () => {
           if (this.particlesSystem && typeof this.particlesSystem.transform === "function") {

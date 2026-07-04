@@ -432,6 +432,10 @@ a#magic-window {
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
+    transform: translate3d(0, -80px, 0);
+    opacity: 0;
+    transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
 }
 
 #console-left {
@@ -439,6 +443,10 @@ a#magic-window {
     left: 10px;
     bottom: 88px;
     width: 240px;
+    transform: translate3d(-260px, 0, 0);
+    opacity: 0;
+    transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
 }
 
 #console-right {
@@ -534,4 +542,70 @@ a#magic-window {
     border-radius: 2px;
     width: 0%;
     transition: width 0.3s ease;
+}
+
+/* Futuristic Boot Loader Styles */
+.hud-scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0) 50%,
+        rgba(0, 229, 255, 0.04) 50%,
+        rgba(0, 229, 255, 0.04)
+    );
+    background-size: 100% 4px;
+    z-index: 10001;
+    pointer-events: none;
+    animation: scanlineScroll 6s linear infinite;
+    opacity: 0.3;
+}
+
+@keyframes scanlineScroll {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 100%; }
+}
+
+.hud-corner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: #00E5FF;
+    border-style: solid;
+    opacity: 0.6;
+}
+.hud-corner.top-left {
+    top: 10px;
+    left: 10px;
+    border-width: 2px 0 0 2px;
+    border-top-left-radius: 4px;
+}
+.hud-corner.top-right {
+    top: 10px;
+    right: 10px;
+    border-width: 2px 2px 0 0;
+    border-top-right-radius: 4px;
+}
+.hud-corner.bottom-left {
+    bottom: 10px;
+    left: 10px;
+    border-width: 0 0 2px 2px;
+    border-bottom-left-radius: 4px;
+}
+.hud-corner.bottom-right {
+    bottom: 10px;
+    right: 10px;
+    border-width: 0 2px 2px 0;
+    border-bottom-right-radius: 4px;
+}
+
+/* Boot screen exit animation classes */
+.boot-fade-out {
+    opacity: 0 !important;
+    transform: scale(1.08) !important;
+    pointer-events: none !important;
 }
