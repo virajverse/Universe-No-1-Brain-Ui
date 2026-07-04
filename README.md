@@ -2,10 +2,10 @@
 
 > **"The ultimate high-fidelity 3D visual telemetry console for biological and cognitive intelligence mapping."**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge)](https://github.com/virajverse/VirajverseBrainUi)
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg?style=for-the-badge)](https://github.com/virajverse/VirajverseBrainUi)
-[![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/virajverse/VirajverseBrainUi)
-[![Tech Stack](https://img.shields.io/badge/tech_stack-Three.js_|_GSAP_|_Webpack-blueviolet.svg?style=for-the-badge)](https://github.com/virajverse/VirajverseBrainUi)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge)](https://github.com/virajverse/Universe-No-1-Brain-Ui)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg?style=for-the-badge)](https://github.com/virajverse/Universe-No-1-Brain-Ui)
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/virajverse/Universe-No-1-Brain-Ui)
+[![Tech Stack](https://img.shields.io/badge/tech_stack-Three.js_|_GSAP_|_Webpack-blueviolet.svg?style=for-the-badge)](https://github.com/virajverse/Universe-No-1-Brain-Ui)
 
 ---
 
@@ -92,8 +92,8 @@ Follow these steps to spin up the local development dashboard:
 
 1. **Clone and Navigate**:
    ```bash
-   git clone https://github.com/virajverse/VirajverseBrainUi.git
-   cd VirajverseBrainUi/3dbrain
+   git clone https://github.com/virajverse/Universe-No-1-Brain-Ui.git
+   cd Universe-No-1-Brain-Ui/3dbrain
    ```
 
 2. **Install Dependencies**:
@@ -157,4 +157,4 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 ## 👥 Contact & Authors
 
 * **Project Owner**: VirajVerse Team - [@virajverse](https://github.com/virajverse)
-* **Visualizer Link**: [https://github.com/virajverse/VirajverseBrainUi](https://github.com/virajverse/VirajverseBrainUi)
+* **Visualizer Link**: [https://github.com/virajverse/Universe-No-1-Brain-Ui](https://github.com/virajverse/Universe-No-1-Brain-Ui)
