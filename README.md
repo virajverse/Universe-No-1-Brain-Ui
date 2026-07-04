@@ -46,7 +46,7 @@ Rather than serving as a static model viewer, this dashboard hooks directly into
 
 ## 🎨 Screenshots & Live Demo
 
-| 🌐 **Live Application** | [Launch Web Demo](https://dbrain-742f1.firebaseapp.com/) |
+| 🌐 **Live Application** | [Launch Web Demo](https://versebrain.vercel.app/) |
 |---|---|
 
 ![3D Brain Telemetry Screenshot](screenshot/universe.png)
