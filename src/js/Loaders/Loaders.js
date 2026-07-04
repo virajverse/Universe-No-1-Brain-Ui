@@ -33,7 +33,7 @@ class Loaders {
     }
 
     loadOBJsAsync() {
-        const loader = new THREE.OBJLoader();
+        const loader = new THREE.OBJLoader(this.loadingManager);
         loader.load('static/models/BrainUVs.obj', (model) => {
             this.BRAIN_MODEL = model;
             if (this.onModelLoaded) {

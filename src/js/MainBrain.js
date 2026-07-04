@@ -19,14 +19,11 @@ class MainBrain extends AbstractApplication {
     this.deltaTime = 0;
     this.particlesColor = new THREE.Color(0xffffff);
     this.particlesStartColor = new THREE.Color(0xffffff);
-    this.loaders = new Loaders(
-      this.runAnimation.bind(this),
-      model => this.onBrainModelLoaded(model)
-    );
     this.memories = Memories;
     this.brainLines = [];
     this.brainMeshes = [];
     this.brainWireframes = [];
+    this.brainBufferGeometries = [];
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2(999.0, 999.0);
     window.addEventListener("mousemove", this.onMouseMove.bind(this), false);
@@ -92,6 +89,11 @@ class MainBrain extends AbstractApplication {
 
     // Setup backend telemetry socket listener
     this.setupTelemetryWS();
+
+    this.loaders = new Loaders(
+      this.runAnimation.bind(this),
+      model => this.onBrainModelLoaded(model)
+    );
   }
 
   setupTelemetryWS() {
@@ -199,10 +201,6 @@ class MainBrain extends AbstractApplication {
   }
 
   addBrain() {
-    this.brainBufferGeometries = [];
-    this.brainLines = [];
-    this.brainMeshes = [];
-
     this.innerCoreGroup = new THREE.Group();
     this.innerCoreSpheres = [];
 
