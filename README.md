@@ -49,7 +49,7 @@ Rather than serving as a static model viewer, this dashboard hooks directly into
 | 🌐 **Live Application** | [Launch Web Demo](https://dbrain-742f1.firebaseapp.com/) |
 |---|---|
 
-![3D Brain Telemetry Screenshot](https://raw.githubusercontent.com/victors1681/3dbrain/master/screenshot/brain3d.png)
+![3D Brain Telemetry Screenshot](screenshot/universe.png)
 
 ---
 
