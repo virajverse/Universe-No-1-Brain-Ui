@@ -277,6 +277,7 @@ class ParticleSystem {
         xRayGeometry.computeVertexNormals();
 
         const xRayEffect = new THREE.Mesh(xRayGeometry, xRayMaterial);
+        xRayEffect.visible = false;
 
         // systemPoints.visible = false;
         // system.scale.multiplyScalar(1.05);

@@ -44,6 +44,8 @@ class MainBrain extends AbstractApplication {
 
     // Subsystem live telemetry state cache
     this.isTelemetryWSConnected = false;
+    this.backendAutoOff = true;
+    this.backendMode = "ui-only";
     this.logicalTick = 0;
     this.telemetryData = {
       cpu_usage_pct: 12.0,
@@ -97,6 +99,12 @@ class MainBrain extends AbstractApplication {
   }
 
   setupTelemetryWS() {
+    if (this.backendAutoOff) {
+      this.isTelemetryWSConnected = false;
+      this.backendMode = "ui-only";
+      return;
+    }
+
     try {
       this.telemetryWS = new WebSocket("ws://localhost:8080/telemetry");
       this.telemetryWS.onopen = () => {
@@ -151,6 +159,25 @@ class MainBrain extends AbstractApplication {
     } catch (e) {
       this.isTelemetryWSConnected = false;
       setTimeout(() => this.setupTelemetryWS(), 5000);
+    }
+  }
+
+  addConsoleLog(message, level = "info") {
+    const terminal = document.getElementById("boot-terminal-lines");
+    if (terminal) {
+      const line = document.createElement("div");
+      line.style.color = level === "warning" ? "#FFD600" : "#85F7FF";
+      line.style.margin = "2px 0";
+      line.style.fontFamily = "monospace";
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    if (level === "warning") {
+      console.warn(message);
+    } else {
+      console.log(message);
     }
   }
 
@@ -719,10 +746,10 @@ class MainBrain extends AbstractApplication {
     };
 
     addBootLog("VALIDATING COGNITIVE ARCHITECTURE BLUEPRINTS...", 150);
-    addBootLog("ESTABLISHING TELEMETRY WS CONNECTION LINK...", 350);
+    addBootLog("BACKEND AUTO-OFF. RUNNING UI-ONLY MODE...", 350);
     addBootLog("MAPPING 13 COGNITIVE SYSTEM LOBES...", 550);
     addBootLog("INJECTING PROCEDURAL DNA SEED: 829103...", 750);
-    addBootLog("BOOT SUCCESSFUL. ENGAGING VISUAL TELEMETRY...", 950);
+    addBootLog("BOOT SUCCESSFUL. ENGAGING VISUAL EXPERIENCE...", 950);
 
     // 2. Trigger HUD panels cascading slide-in and fade overlay out
     setTimeout(() => {
@@ -789,9 +816,6 @@ class MainBrain extends AbstractApplication {
           }
         },
         onComplete: () => {
-          if (this.particlesSystem && this.particlesSystem.xRay) {
-            this.particlesSystem.xRay.material.uniforms.c.value = 1.0;
-          }
           this.startAutoDemo();
         }
       }
@@ -800,13 +824,12 @@ class MainBrain extends AbstractApplication {
 
   startAutoDemo() {
     let memoryCount = 1;
-    if (this.particlesSystem && this.particlesSystem.xRay) {
-      this.scene.add(this.particlesSystem.xRay);
-    }
     let memoryTimer;
     setTimeout(() => {
+      if (this.particlesSystem && this.particlesSystem.xRay) {
+        this.particlesSystem.xRay.visible = false;
+      }
       if (this.particlesSystem && typeof this.particlesSystem.isXRayActive === "function") {
-        this.particlesSystem.isXRayActive(true);
         this.setCognitiveState("RECOVERY");
       }
       setTimeout(() => {
