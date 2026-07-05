@@ -82,17 +82,19 @@ class AbstractApplication {
       this.a_renderer.domElement
     );
     this.orbitControls.enableDamping = true;
-    this.orbitControls.dampingFactor = 0.05; // High-quality smooth damping
+    // Softer damping and lower speeds to reduce sensitivity on mouse and touch
+    // Use slightly different defaults for mobile vs desktop for best feel
+    this.orbitControls.dampingFactor = isMobile ? 0.12 : 0.08;
     this.orbitControls.minPolarAngle = Math.PI / 6; // Limit vertical rotation to 30 degrees
     this.orbitControls.maxPolarAngle = Math.PI * 5 / 6; // Limit vertical rotation to 150 degrees
     this.orbitControls.enableZoom = true;
-    this.orbitControls.zoomSpeed = 1.2;
-    this.orbitControls.panSpeed = 1.0;
+    this.orbitControls.zoomSpeed = isMobile ? 0.7 : 0.9;
+    this.orbitControls.panSpeed = isMobile ? 0.6 : 0.7;
     this.orbitControls.minDistance = 35;
     this.orbitControls.maxDistance = 2500;
     this.orbitControls.autoRotate = false;
     this.orbitControls.autoRotateSpeed = 1.0;
-    this.orbitControls.rotateSpeed = 1.0;
+    this.orbitControls.rotateSpeed = isMobile ? 0.6 : 0.7;
     this.orbitControls.screenSpacePanning = true;
 
     window.addEventListener("resize", this.onWindowResize.bind(this), false);
