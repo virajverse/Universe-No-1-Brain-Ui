@@ -66,7 +66,7 @@ Rather than serving as a static model viewer, this dashboard hooks directly into
 ## 📂 Folder Structure
 
 ```markdown
-3dbrain/
+Universe no 1 brain ui/
 ├── build/                 # Webpack configuration files
 ├── config/                # Environment configurations
 ├── dist/                  # Built assets ready for production hosting
@@ -93,7 +93,7 @@ Follow these steps to spin up the local development dashboard:
 1. **Clone and Navigate**:
    ```bash
    git clone https://github.com/virajverse/Universe-No-1-Brain-Ui.git
-   cd Universe-No-1-Brain-Ui/3dbrain
+   cd Universe-No-1-Brain-Ui
    ```
 
 2. **Install Dependencies**:
