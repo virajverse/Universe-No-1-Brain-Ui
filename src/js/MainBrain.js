@@ -787,8 +787,448 @@ class MainBrain extends AbstractApplication {
 
       // Start WebGL intro zoom & camera orbit rotation
       this.startIntro();
+      this.initGestureControls();
     }, 1200);
   }
+
+  /* eslint-disable */
+  initGestureControls() {
+    if (this.gestureInitialized) return;
+    this.gestureInitialized = true;
+    this.gestureActive = false;
+    this.gestureCamera = null;
+    this.lastGestureActivityTime = Date.now();
+    this.isResettingCamera = false;
+    this.gestureActivityInterval = null;
+
+    if (!this.defaultCameraPosition && this.camera) {
+      this.defaultCameraPosition = this.camera.position.clone();
+    }
+
+    const gestureBtn = document.getElementById("btn-toggle-gesture");
+    const previewContainer = document.getElementById("gesture-preview-container");
+    const videoElement = document.getElementById("gesture-webcam");
+    const canvasElement = document.getElementById("gesture-canvas");
+
+    if (!gestureBtn || !videoElement || !canvasElement) return;
+
+    const canvasCtx = canvasElement.getContext("2d");
+    canvasElement.width = 140;
+    canvasElement.height = 105;
+
+    let prevSingleDist = null;
+    let prevDoubleDist = null;
+    let prevCenter = null;
+    let prevPalmSize = null;
+
+    const MP_Hands = window.Hands;
+    const MP_Camera = window.Camera;
+
+    if (!MP_Hands || !MP_Camera) {
+      console.warn("MediaPipe libraries not loaded from CDN.");
+      return;
+    }
+
+    const hands = new MP_Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults((results) => {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      let detectedHands = [];
+
+      if (results.multiHandLandmarks) {
+        for (const landmarks of results.multiHandLandmarks) {
+          // Draw joints
+          canvasCtx.fillStyle = '#00E5FF';
+          for (const lm of landmarks) {
+            canvasCtx.beginPath();
+            canvasCtx.arc(lm.x * canvasElement.width, lm.y * canvasElement.height, 1.5, 0, 2 * Math.PI);
+            canvasCtx.fill();
+          }
+
+          // Center coordinate
+          let sumX = 0, sumY = 0;
+          for (const lm of landmarks) {
+            sumX += lm.x;
+            sumY += lm.y;
+          }
+          let cx = sumX / landmarks.length;
+          let cy = sumY / landmarks.length;
+
+          // Thumb tip index 4, Index tip index 8
+          let thumb = landmarks[4];
+          let index = landmarks[8];
+
+          detectedHands.push({
+            center: { x: cx, y: cy },
+            thumb: thumb,
+            index: index,
+            landmarks: landmarks
+          });
+        }
+      }
+
+      // Draw Guide Box
+      canvasCtx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+      canvasCtx.lineWidth = 1;
+      canvasCtx.strokeRect(
+        canvasElement.width * 0.15,
+        canvasElement.height * 0.15,
+        canvasElement.width * 0.7,
+        canvasElement.height * 0.7
+      );
+
+      let zoomFactor = null;
+
+      if (detectedHands.length === 2) {
+        // Two hands: zoom using hand distance & rotate using midpoint shift
+        let h1 = detectedHands[0].center;
+        let h2 = detectedHands[1].center;
+        let currDist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+        let center = { x: (h1.x + h2.x) / 2, y: (h1.y + h2.y) / 2 };
+
+        this.lastGestureActivityTime = Date.now();
+        if (this.isResettingCamera) {
+          TweenMax.killTweensOf(this.camera.position);
+          TweenMax.killTweensOf(this.orbitControls.target);
+          this.isResettingCamera = false;
+        }
+
+        // Draw connection line
+        canvasCtx.strokeStyle = '#BD00FF';
+        canvasCtx.lineWidth = 1.5;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(h1.x * canvasElement.width, h1.y * canvasElement.height);
+        canvasCtx.lineTo(h2.x * canvasElement.width, h2.y * canvasElement.height);
+        canvasCtx.stroke();
+
+        // 1. ZOOM (Hand distance changes)
+        if (prevDoubleDist !== null) {
+          let diff = currDist - prevDoubleDist;
+          if (Math.abs(diff) > 0.005) {
+            zoomFactor = 1.0 - (diff * 2.5);
+            zoomFactor = Math.max(0.90, Math.min(1.10, zoomFactor));
+          }
+        }
+        prevDoubleDist = currDist;
+
+        // 2. ROTATION (Midpoint shift changes)
+        if (prevCenter !== null) {
+          let diffX = center.x - prevCenter.x;
+          let diffY = center.y - prevCenter.y;
+
+          if (Math.abs(diffX) > 0.0005 || Math.abs(diffY) > 0.0005) {
+            if (this.orbitControls && this.camera) {
+              const offset = this.camera.position.clone().sub(this.orbitControls.target);
+              const spherical = new THREE.Spherical().setFromVector3(offset);
+              spherical.theta -= diffX * 5.5;
+              spherical.phi += diffY * 5.5;
+              spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+              spherical.makeSafe();
+              offset.setFromSpherical(spherical);
+              this.camera.position.copy(this.orbitControls.target).add(offset);
+              this.orbitControls.update();
+            }
+          }
+        }
+        prevCenter = center;
+        prevSingleDist = null;
+        prevPalmSize = null;
+      } else if (detectedHands.length === 1) {
+        // One hand: Zoom (if pinched and moved closer/further) or Rotate (if open)
+        let thumb = detectedHands[0].thumb;
+        let index = detectedHands[0].index;
+        let center = detectedHands[0].center;
+        let handLms = detectedHands[0].landmarks;
+        let currDist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+
+        this.lastGestureActivityTime = Date.now();
+        if (this.isResettingCamera) {
+          TweenMax.killTweensOf(this.camera.position);
+          TweenMax.killTweensOf(this.orbitControls.target);
+          this.isResettingCamera = false;
+        }
+
+        // Draw connection line
+        canvasCtx.strokeStyle = '#00E5FF';
+        canvasCtx.lineWidth = 1.5;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(thumb.x * canvasElement.width, thumb.y * canvasElement.height);
+        canvasCtx.lineTo(index.x * canvasElement.width, index.y * canvasElement.height);
+        canvasCtx.stroke();
+
+        // If thumb and index tip distance is small, it's a pinch -> Zoom Mode (using palm size)
+        if (currDist < 0.065) {
+          // Calculate palm size (wrist to middle finger MCP) as a proxy for depth from camera
+          let palmSize = Math.hypot(handLms[0].x - handLms[9].x, handLms[0].y - handLms[9].y);
+          
+          if (prevPalmSize !== null) {
+            let diff = palmSize - prevPalmSize;
+            if (Math.abs(diff) > 0.003) {
+              // Moving hand closer (palmSize increases, diff > 0) -> Zoom In (zoomFactor < 1)
+              // Moving hand away (palmSize decreases, diff < 0) -> Zoom Out (zoomFactor > 1)
+              zoomFactor = 1.0 - (diff * 4.5);
+              zoomFactor = Math.max(0.90, Math.min(1.10, zoomFactor));
+            }
+          }
+          prevPalmSize = palmSize;
+          prevCenter = null; // Clear rotation reference
+          prevSingleDist = null;
+        } else {
+          // ROTATION MODE (Open Hand)
+          if (prevCenter !== null) {
+            let diffX = center.x - prevCenter.x;
+            let diffY = center.y - prevCenter.y;
+
+            if (Math.abs(diffX) > 0.0005 || Math.abs(diffY) > 0.0005) {
+              if (this.orbitControls && this.camera) {
+                const offset = this.camera.position.clone().sub(this.orbitControls.target);
+                const spherical = new THREE.Spherical().setFromVector3(offset);
+                spherical.theta -= diffX * 5.5;
+                spherical.phi += diffY * 5.5;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                spherical.makeSafe();
+                offset.setFromSpherical(spherical);
+                this.camera.position.copy(this.orbitControls.target).add(offset);
+                this.orbitControls.update();
+              }
+            }
+          }
+          prevCenter = center;
+          prevPalmSize = null; // Clear zoom reference
+          prevSingleDist = null;
+        }
+      } else {
+        prevSingleDist = null;
+        prevDoubleDist = null;
+        prevCenter = null;
+        prevPalmSize = null;
+      }
+
+      if (zoomFactor) {
+        if (this.orbitControls) {
+          this.orbitControls.object.position.multiplyScalar(zoomFactor);
+          // Clamp distance bounds for camera
+          const dist = this.orbitControls.object.position.length();
+          if (dist < 60) {
+            this.orbitControls.object.position.setLength(60);
+          } else if (dist > 1800) {
+            this.orbitControls.object.position.setLength(1800);
+          }
+          this.orbitControls.update();
+        }
+      }
+    });
+
+    let isProcessingFrame = false;
+    const startCamera = () => {
+      this.gestureCamera = new MP_Camera(videoElement, {
+        onFrame: async () => {
+          if (this.gestureActive && !isProcessingFrame) {
+            isProcessingFrame = true;
+            try {
+              await hands.send({ image: videoElement });
+            } catch (err) {
+              console.warn("MediaPipe frame processing error:", err);
+            } finally {
+              isProcessingFrame = false;
+            }
+          }
+        },
+        width: 320,
+        height: 240
+      });
+      this.gestureCamera.start()
+        .then(() => console.log("Gesture tracking camera started successfully."))
+        .catch((err) => console.error("Webcam failed to load:", err));
+    };
+
+    const startInactivityTimer = () => {
+      this.lastGestureActivityTime = Date.now();
+      if (this.gestureActivityInterval) clearInterval(this.gestureActivityInterval);
+      
+      this.gestureActivityInterval = setInterval(() => {
+        if (this.gestureActive && Date.now() - this.lastGestureActivityTime > 11000) {
+          // 11 seconds of inactivity: smooth reset camera
+          if (this.orbitControls && !this.isResettingCamera) {
+            this.isResettingCamera = true;
+            
+            const targetPos = this.defaultCameraPosition || new THREE.Vector3(0, 50, 380);
+            
+            TweenMax.to(this.camera.position, 2.5, {
+              x: targetPos.x,
+              y: targetPos.y,
+              z: targetPos.z,
+              ease: Power2.easeInOut,
+              onUpdate: () => {
+                this.orbitControls.update();
+              },
+              onComplete: () => {
+                this.isResettingCamera = false;
+                prevSingleDist = null;
+                prevDoubleDist = null;
+                prevCenter = null;
+              }
+            });
+
+            TweenMax.to(this.orbitControls.target, 2.5, {
+              x: 0,
+              y: 0,
+              z: 0,
+              ease: Power2.easeInOut
+            });
+          }
+        }
+      }, 1000);
+    };
+
+    gestureBtn.addEventListener("click", () => {
+      if (!this.gestureActive) {
+        this.showGesturePermissionPrompt(
+          () => {
+            this.gestureActive = true;
+            gestureBtn.textContent = "Gestures: ON";
+            gestureBtn.style.background = "rgba(0, 229, 255, 0.15)";
+            gestureBtn.style.borderColor = "#00E5FF";
+            gestureBtn.style.color = "#85F7FF";
+            previewContainer.style.display = "flex";
+
+            if (!this.gestureCamera) {
+              startCamera();
+            } else {
+              videoElement.play();
+            }
+            startInactivityTimer();
+          },
+          () => {
+            this.gestureActive = false;
+            gestureBtn.textContent = "Gestures: OFF";
+            gestureBtn.style.background = "rgba(220, 50, 50, 0.15)";
+            gestureBtn.style.borderColor = "#ff5252";
+            gestureBtn.style.color = "#ff8a80";
+            previewContainer.style.display = "none";
+          }
+        );
+      } else {
+        this.gestureActive = false;
+        gestureBtn.textContent = "Gestures: OFF";
+        gestureBtn.style.background = "rgba(220, 50, 50, 0.15)";
+        gestureBtn.style.borderColor = "#ff5252";
+        gestureBtn.style.color = "#ff8a80";
+        previewContainer.style.display = "none";
+
+        if (videoElement.srcObject) {
+          const stream = videoElement.srcObject;
+          const tracks = stream.getTracks();
+          tracks.forEach(track => track.stop());
+          videoElement.srcObject = null;
+        }
+        this.gestureCamera = null;
+
+        if (this.gestureActivityInterval) {
+          clearInterval(this.gestureActivityInterval);
+          this.gestureActivityInterval = null;
+        }
+      }
+    });
+  }
+
+  showGesturePermissionPrompt(onAllow, onDeny) {
+    const modal = document.createElement("div");
+    modal.style.position = "fixed";
+    modal.style.top = "0";
+    modal.style.left = "0";
+    modal.style.width = "100vw";
+    modal.style.height = "100vh";
+    modal.style.background = "rgba(2, 6, 23, 0.85)";
+    modal.style.backdropFilter = "blur(8px)";
+    modal.style.zIndex = "100000";
+    modal.style.display = "flex";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.fontFamily = "'Outfit', sans-serif";
+
+    const box = document.createElement("div");
+    box.style.background = "rgba(10, 10, 22, 0.95)";
+    box.style.border = "1px solid rgba(0, 229, 255, 0.3)";
+    box.style.borderRadius = "12px";
+    box.style.padding = "25px";
+    box.style.width = "90%";
+    box.style.maxWidth = "400px";
+    box.style.boxShadow = "0 0 30px rgba(0, 229, 255, 0.15)";
+    box.style.textAlign = "center";
+    box.style.color = "#85F7FF";
+
+    const header = document.createElement("h3");
+    header.textContent = "Webcam Control Setup";
+    header.style.margin = "0 0 15px 0";
+    header.style.color = "#00E5FF";
+    header.style.letterSpacing = "0.05em";
+
+    const text = document.createElement("p");
+    text.textContent = "If you want to control this brain using hands, allow the camera permission. Otherwise, do not allow.";
+    text.style.fontSize = "12px";
+    text.style.lineHeight = "1.5";
+    text.style.margin = "0 0 25px 0";
+    text.style.color = "#a0a0b8";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.gap = "10px";
+    btnContainer.style.justifyContent = "center";
+
+    const allowBtn = document.createElement("button");
+    allowBtn.textContent = "Allow Camera";
+    allowBtn.style.padding = "8px 16px";
+    allowBtn.style.background = "rgba(0, 229, 255, 0.15)";
+    allowBtn.style.border = "1px solid #00E5FF";
+    allowBtn.style.color = "#85F7FF";
+    allowBtn.style.borderRadius = "6px";
+    allowBtn.style.cursor = "pointer";
+    allowBtn.style.fontSize = "11px";
+    allowBtn.style.fontWeight = "bold";
+
+    const denyBtn = document.createElement("button");
+    denyBtn.textContent = "Cancel";
+    denyBtn.style.padding = "8px 16px";
+    denyBtn.style.background = "rgba(220, 50, 50, 0.15)";
+    denyBtn.style.border = "1px solid #ff5252";
+    denyBtn.style.color = "#ff8a80";
+    denyBtn.style.borderRadius = "6px";
+    denyBtn.style.cursor = "pointer";
+    denyBtn.style.fontSize = "11px";
+    denyBtn.style.fontWeight = "bold";
+
+    allowBtn.addEventListener("click", () => {
+      document.body.removeChild(modal);
+      onAllow();
+    });
+
+    denyBtn.addEventListener("click", () => {
+      document.body.removeChild(modal);
+      onDeny();
+    });
+
+    btnContainer.appendChild(denyBtn);
+    btnContainer.appendChild(allowBtn);
+    box.appendChild(header);
+    box.appendChild(text);
+    box.appendChild(btnContainer);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+  }
+  /* eslint-enable */
+  /* eslint-disable no-param-reassign, space-infix-ops, space-before-blocks, no-plusplus */
 
   startIntro() {
     const progress = { p: 1200, angle: Math.PI };
@@ -816,6 +1256,9 @@ class MainBrain extends AbstractApplication {
           }
         },
         onComplete: () => {
+          if (this.camera) {
+            this.defaultCameraPosition = this.camera.position.clone();
+          }
           this.startAutoDemo();
         }
       }

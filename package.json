@@ -11,7 +11,7 @@
   "author": "Virajverse | Taliyo Technologies",
   "license": "MIT",
   "scripts": {
-    "dev": "webpack-dev-server --inline --progress --host localhost --config build/webpack.dev.conf.js",
+    "dev": "node --require ./mock-http-parser.js node_modules/webpack-dev-server/bin/webpack-dev-server.js --inline --progress --host localhost --config build/webpack.dev.conf.js",
     "start": "npm run dev",
     "lint": "eslint --ext .js src --fix",
     "build": "node build/build.js",
@@ -89,6 +89,7 @@
     "glslify-fancy-imports": "^1.0.1",
     "glslify-hex": "^2.0.1",
     "gsap": "^1.20.4",
+    "http-parser-js": "^0.5.10",
     "lodash": "^4.17.10",
     "postprocessing": "^4.5.0",
     "socket.io-client": "^2.1.1",
